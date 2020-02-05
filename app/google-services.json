@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "602122264183",
+    "firebase_url": "https://detectfacewithcamerax.firebaseio.com",
+    "project_id": "detectfacewithcamerax",
+    "storage_bucket": "detectfacewithcamerax.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:602122264183:android:1916087340cf682f6fb072",
+        "android_client_info": {
+          "package_name": "net.kwmt27.detectfacewithcamerax"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "602122264183-u6e1bvhj4uh1vq0l3q2r8n4h76j9ooep.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "net.kwmt27.detectfacewithcamerax",
+            "certificate_hash": "706a6e18930ee8f350f3ba5007ed0c55c646a05a"
+          }
+        },
+        {
+          "client_id": "602122264183-lr1ijvp0a8u6i6d7l6dqcehi88hh53ih.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsz3q0-rnCuHLKfsi782H1mho5SOAzQXs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "602122264183-lr1ijvp0a8u6i6d7l6dqcehi88hh53ih.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
