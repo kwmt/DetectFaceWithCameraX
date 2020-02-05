@@ -295,10 +295,10 @@ class CameraFragment : Fragment() {
                 .setTargetAspectRatio(screenAspectRatio)
                 // Set initial target rotation
                 .setTargetRotation(rotation)
-                .build()
-
-            // Default PreviewSurfaceProvider
-            preview?.setPreviewSurfaceProvider(viewFinder.previewSurfaceProvider)
+                .build().apply {
+                    // Default PreviewSurfaceProvider
+                    previewSurfaceProvider = viewFinder.previewSurfaceProvider
+                }
 
             // ImageCapture
             imageCapture = ImageCapture.Builder()
