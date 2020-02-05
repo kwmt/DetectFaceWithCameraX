@@ -321,11 +321,12 @@ class CameraFragment : Fragment() {
                 .build()
                 // The analyzer can then be assigned to the instance
                 .also {
-                    it.setAnalyzer(mainExecutor, LuminosityAnalyzer {luma ->
-                        // Values returned from our analyzer are passed to the attached listener
-                        // We log image analysis results here - you should do something useful instead!
-                        Log.d(TAG, "Average luminosity: $luma")
-                    })
+//                    it.setAnalyzer(mainExecutor, LuminosityAnalyzer {luma ->
+//                        // Values returned from our analyzer are passed to the attached listener
+//                        // We log image analysis results here - you should do something useful instead!
+//                        Log.d(TAG, "Average luminosity: $luma")
+//                    })
+                    it.setAnalyzer(mainExecutor, FaceAnalyzer())
                 }
 
             // Must unbind the use-cases before rebinding them.
