@@ -232,6 +232,7 @@ class CameraFragment : Fragment() {
         container = view as ConstraintLayout
         viewFinder = container.findViewById(R.id.view_finder)
         broadcastManager = LocalBroadcastManager.getInstance(view.context)
+        graphicOverlay = view.findViewById(R.id.graphicOverlay)
 
         // Set up the intent filter that will receive events from our main activity
         val filter = IntentFilter().apply { addAction(KEY_EVENT_ACTION) }
@@ -267,8 +268,6 @@ class CameraFragment : Fragment() {
             }
         }
 
-        graphicOverlay = view.findViewById(R.id.graphicOverlay)
-
         faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
             update(face)
         })
@@ -284,12 +283,13 @@ class CameraFragment : Fragment() {
             val faces = withContext(Dispatchers.Default) {
                 faceAnalyzer.detectFace(visionImage)
             }
-            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.isNotEmpty()}" )
-            if (faces.isNotEmpty()) return@launch
+            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.size}" )
+            if (faces.isEmpty()) return@launch
 
             graphicOverlay.clear()
 
             for (f in faces) {
+                Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}")
                 val faceGraphic = FaceGraphic(graphicOverlay, f, 0, null)
                 graphicOverlay.add(faceGraphic)
                 faceGraphic.postInvalidate()
