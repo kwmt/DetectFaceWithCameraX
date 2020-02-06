@@ -41,10 +41,13 @@ import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageAnalysis.STRATEGY_BLOCK_PRODUCER
+import androidx.camera.core.ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCapture.Metadata
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.impl.ImageAnalysisConfig
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -52,6 +55,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.setPadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.Navigation
@@ -60,18 +64,21 @@ import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import net.kwmt27.detectfacewithcamerax.KEY_EVENT_ACTION
 import net.kwmt27.detectfacewithcamerax.KEY_EVENT_EXTRA
 import net.kwmt27.detectfacewithcamerax.MainActivity
 import net.kwmt27.detectfacewithcamerax.R
+import net.kwmt27.detectfacewithcamerax.ui.main.view.FaceGraphic
+import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import java.io.File
+import java.lang.Runnable
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.ArrayDeque
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayList
 import kotlin.math.abs
@@ -103,6 +110,9 @@ class CameraFragment : Fragment() {
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
 
+    private val faceAnalyzer = FaceAnalyzer()
+    private lateinit var graphicOverlay: GraphicOverlay
+
     /** Volume down button receiver used to trigger shutter */
     private val volumeDownReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -110,7 +120,7 @@ class CameraFragment : Fragment() {
                 // When the volume down button is pressed, simulate a shutter button click
                 KeyEvent.KEYCODE_VOLUME_DOWN -> {
                     val shutter = container
-                            .findViewById<ImageButton>(R.id.camera_capture_button)
+                        .findViewById<ImageButton>(R.id.camera_capture_button)
                     shutter.simulateClick()
                 }
             }
@@ -145,7 +155,7 @@ class CameraFragment : Fragment() {
         // user could have removed them while the app was in paused state.
         if (!PermissionsFragment.hasPermissions(requireContext())) {
             Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
-                    CameraFragmentDirections.actionCameraToPermissions()
+                CameraFragmentDirections.actionCameraToPermissions()
             )
         }
     }
@@ -158,10 +168,11 @@ class CameraFragment : Fragment() {
     }
 
     override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?): View? =
-            inflater.inflate(R.layout.fragment_camera, container, false)
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? =
+        inflater.inflate(R.layout.fragment_camera, container, false)
 
     private fun setGalleryThumbnail(file: File) {
         // Reference of the view that holds the gallery thumbnail
@@ -175,9 +186,9 @@ class CameraFragment : Fragment() {
 
             // Load thumbnail into circular button using Glide
             Glide.with(thumbnail)
-                    .load(file)
-                    .apply(RequestOptions.circleCropTransform())
-                    .into(thumbnail)
+                .load(file)
+                .apply(RequestOptions.circleCropTransform())
+                .into(thumbnail)
         }
     }
 
@@ -200,7 +211,7 @@ class CameraFragment : Fragment() {
             // so if you only target API level 24+ you can remove this statement
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
                 requireActivity().sendBroadcast(
-                        Intent(android.hardware.Camera.ACTION_NEW_PICTURE, Uri.fromFile(photoFile))
+                    Intent(android.hardware.Camera.ACTION_NEW_PICTURE, Uri.fromFile(photoFile))
                 )
             }
 
@@ -209,7 +220,7 @@ class CameraFragment : Fragment() {
             // scan them using [MediaScannerConnection]
             val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(photoFile.extension)
             MediaScannerConnection.scanFile(
-                    context, arrayOf(photoFile.absolutePath), arrayOf(mimeType), null
+                context, arrayOf(photoFile.absolutePath), arrayOf(mimeType), null
             )
         }
     }
@@ -227,7 +238,7 @@ class CameraFragment : Fragment() {
 
         // Every time the orientation of device changes, recompute layout
         displayManager = viewFinder.context
-                .getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+            .getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         displayManager.registerDisplayListener(displayListener, null)
 
         // Determine the output directory
@@ -254,6 +265,35 @@ class CameraFragment : Fragment() {
                 }
             }
         }
+
+        graphicOverlay = view.findViewById(R.id.graphicOverlay)
+
+        faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
+            update(face)
+        })
+    }
+
+    private fun update(face: Face) {
+        val visionImage = face.visionFaces
+
+        val scope = CoroutineScope(Dispatchers.Main)
+        scope.launch {
+
+            val faces = withContext(Dispatchers.Default) {
+                faceAnalyzer.detectFace(visionImage)
+            }
+            if (faces.isNotEmpty()) return@launch
+
+            graphicOverlay.clear()
+
+            for (f in faces) {
+                val faceGraphic = FaceGraphic(graphicOverlay, f, 0, null)
+                graphicOverlay.add(faceGraphic)
+            }
+            graphicOverlay.postInvalidate()
+        }
+
+
     }
 
     /**
@@ -269,6 +309,7 @@ class CameraFragment : Fragment() {
         updateCameraUi()
     }
 
+    val threadPerTaskExecutor = ThreadPerTaskExecutor()
     /** Declare and bind preview, capture and analysis use cases */
     private fun bindCameraUseCases() {
 
@@ -318,15 +359,16 @@ class CameraFragment : Fragment() {
                 // Set initial target rotation, we will have to call this again if rotation changes
                 // during the lifecycle of this use case
                 .setTargetRotation(rotation)
+                .setBackpressureStrategy(STRATEGY_BLOCK_PRODUCER)
                 .build()
                 // The analyzer can then be assigned to the instance
                 .also {
-//                    it.setAnalyzer(mainExecutor, LuminosityAnalyzer {luma ->
+                    //                    it.setAnalyzer(mainExecutor, LuminosityAnalyzer { luma ->
 //                        // Values returned from our analyzer are passed to the attached listener
 //                        // We log image analysis results here - you should do something useful instead!
 //                        Log.d(TAG, "Average luminosity: $luma")
 //                    })
-                    it.setAnalyzer(mainExecutor, FaceAnalyzer())
+                    it.setAnalyzer(Executors.newSingleThreadExecutor(), faceAnalyzer)
                 }
 
             // Must unbind the use-cases before rebinding them.
@@ -338,7 +380,7 @@ class CameraFragment : Fragment() {
                 camera = cameraProvider.bindToLifecycle(
                     this as LifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer
                 )
-            } catch(exc: Exception) {
+            } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
 
@@ -401,7 +443,7 @@ class CameraFragment : Fragment() {
                     container.postDelayed({
                         container.foreground = ColorDrawable(Color.WHITE)
                         container.postDelayed(
-                                { container.foreground = null }, ANIMATION_FAST_MILLIS
+                            { container.foreground = null }, ANIMATION_FAST_MILLIS
                         )
                     }, ANIMATION_SLOW_MILLIS)
                 }
@@ -424,7 +466,8 @@ class CameraFragment : Fragment() {
             // Only navigate when the gallery has photos
             if (true == outputDirectory.listFiles()?.isNotEmpty()) {
                 Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
-                        CameraFragmentDirections.actionCameraToGallery(outputDirectory.absolutePath))
+                    CameraFragmentDirections.actionCameraToGallery(outputDirectory.absolutePath)
+                )
             }
         }
     }
@@ -522,7 +565,16 @@ class CameraFragment : Fragment() {
 
         /** Helper function used to create a timestamped file */
         private fun createFile(baseFolder: File, format: String, extension: String) =
-                File(baseFolder, SimpleDateFormat(format, Locale.US)
-                        .format(System.currentTimeMillis()) + extension)
+            File(
+                baseFolder, SimpleDateFormat(format, Locale.US)
+                    .format(System.currentTimeMillis()) + extension
+            )
     }
+}
+
+class ThreadPerTaskExecutor : Executor {
+    override fun execute(r: Runnable) {
+        Thread(r).start()
+    }
+
 }
