@@ -112,6 +112,7 @@ class CameraFragment : Fragment() {
 
     private val faceAnalyzer = FaceAnalyzer()
     private lateinit var graphicOverlay: GraphicOverlay
+    private val executor = Executors.newSingleThreadExecutor()
 
     /** Volume down button receiver used to trigger shutter */
     private val volumeDownReceiver = object : BroadcastReceiver() {
@@ -274,6 +275,7 @@ class CameraFragment : Fragment() {
     }
 
     private fun update(face: Face) {
+        Log.d("CameraFragment", "update")
         val visionImage = face.visionFaces
 
         val scope = CoroutineScope(Dispatchers.Main)
@@ -282,6 +284,7 @@ class CameraFragment : Fragment() {
             val faces = withContext(Dispatchers.Default) {
                 faceAnalyzer.detectFace(visionImage)
             }
+            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.isNotEmpty()}" )
             if (faces.isNotEmpty()) return@launch
 
             graphicOverlay.clear()
@@ -289,6 +292,7 @@ class CameraFragment : Fragment() {
             for (f in faces) {
                 val faceGraphic = FaceGraphic(graphicOverlay, f, 0, null)
                 graphicOverlay.add(faceGraphic)
+                faceGraphic.postInvalidate()
             }
             graphicOverlay.postInvalidate()
         }
@@ -368,7 +372,7 @@ class CameraFragment : Fragment() {
 //                        // We log image analysis results here - you should do something useful instead!
 //                        Log.d(TAG, "Average luminosity: $luma")
 //                    })
-                    it.setAnalyzer(Executors.newSingleThreadExecutor(), faceAnalyzer)
+                    it.setAnalyzer(executor, faceAnalyzer)
                 }
 
             // Must unbind the use-cases before rebinding them.

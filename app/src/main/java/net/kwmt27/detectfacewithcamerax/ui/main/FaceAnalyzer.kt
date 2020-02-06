@@ -31,14 +31,15 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
 
     val liveDataFaces = MutableLiveData<Face>()
     override fun analyze(imageProxy: ImageProxy) {
-        Log.d("", "analyze")
+        Log.d("FaceAnalyzer", "analyze")
         val image = imageProxy.image!!
         val rotation = translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
 
         val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
+        imageProxy.close()
         liveDataFaces.postValue(Face(visionImage))
-        image.close()
+
 
 
     }
@@ -49,7 +50,9 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
 //    }
 
     suspend fun detectFace(image: FirebaseVisionImage): List<FirebaseVisionFace> =
+
         suspendCoroutine { continuation ->
+            Log.d("FaceAnalyzer", "detectFace")
             detector.detectInImage(image)
                 .addOnSuccessListener { results ->
                     continuation.resume(results)

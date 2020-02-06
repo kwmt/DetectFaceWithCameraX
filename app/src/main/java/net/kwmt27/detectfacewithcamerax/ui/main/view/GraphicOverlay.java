@@ -135,6 +135,7 @@ public class GraphicOverlay extends View {
         synchronized (lock) {
             graphics.add(graphic);
         }
+        postInvalidate();
     }
 
     /** Removes a graphic from the overlay. */
