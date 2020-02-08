@@ -265,32 +265,8 @@ class CameraFragment : Fragment() {
         }
 
         faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
-            update(face)
+            faceAnalyzer.updateFaceUI(graphicOverlay, face, lensFacing, viewFinder)
         })
-    }
-
-    private fun update(face: Face) {
-        Log.d("CameraFragment", "update")
-        val visionImage = face.visionFaces
-
-        val scope = CoroutineScope(Dispatchers.Default)
-        scope.launch {
-
-            val faces = withContext(Dispatchers.IO) {
-                faceAnalyzer.detectFace(visionImage)
-            }
-            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.size}")
-            if (faces.isEmpty()) return@launch
-
-            graphicOverlay.clear()
-
-            for (f in faces) {
-                Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}")
-                val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null, viewFinder)
-                graphicOverlay.add(faceGraphic)
-            }
-            graphicOverlay.postInvalidate()
-        }
     }
 
     private fun isPortraitMode(): Boolean {
@@ -402,9 +378,8 @@ class CameraFragment : Fragment() {
                 if (isPortraitMode()) {
                     graphicOverlay.setCameraInfo(previewSize.height, previewSize.width, lensFacing)
                 } else {
-                    graphicOverlay.setCameraInfo(previewSize.width,previewSize.height, lensFacing)
+                    graphicOverlay.setCameraInfo(previewSize.width, previewSize.height, lensFacing)
                 }
-
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }

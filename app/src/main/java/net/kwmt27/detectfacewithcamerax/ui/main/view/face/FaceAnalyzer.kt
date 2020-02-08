@@ -3,12 +3,18 @@ package net.kwmt27.detectfacewithcamerax.ui.main.view.face
 import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.view.PreviewView
 import androidx.lifecycle.MutableLiveData
 import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
 import com.google.firebase.ml.vision.face.FirebaseVisionFace
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -50,6 +56,29 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
                 }
         }
 
+    fun updateFaceUI(graphicOverlay: GraphicOverlay, face: Face, lensFacing: Int, viewFinder: PreviewView) {
+        Log.d("CameraFragment", "update")
+        val visionImage = face.visionFaces
+
+        val scope = CoroutineScope(Dispatchers.Default)
+        scope.launch {
+
+            val faces = withContext(Dispatchers.IO) {
+                detectFace(visionImage)
+            }
+            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.size}")
+            if (faces.isEmpty()) return@launch
+
+            graphicOverlay.clear()
+
+            for (f in faces) {
+                Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}")
+                val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null, viewFinder)
+                graphicOverlay.add(faceGraphic)
+            }
+            graphicOverlay.postInvalidate()
+        }
+    }
     companion object {
         fun translateFirebaseRotation(rotationDegrees: Int): Int {
             return when (rotationDegrees) {
