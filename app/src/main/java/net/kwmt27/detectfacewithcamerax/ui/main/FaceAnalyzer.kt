@@ -27,12 +27,13 @@ data class Face(
 class FaceAnalyzer : ImageAnalysis.Analyzer {
 
     // Real-time contour detection of multiple faces
-    val options by lazy {
+    private val options by lazy {
         FirebaseVisionFaceDetectorOptions.Builder()
-            .setContourMode(FirebaseVisionFaceDetectorOptions.ALL_CONTOURS)
+            .setClassificationMode(FirebaseVisionFaceDetectorOptions.ALL_CLASSIFICATIONS)
+            .setLandmarkMode(FirebaseVisionFaceDetectorOptions.ALL_LANDMARKS)
             .build()
     }
-    val detector by lazy { FirebaseVision.getInstance().getVisionFaceDetector(options) }
+    private val detector by lazy { FirebaseVision.getInstance().getVisionFaceDetector(options) }
 
 
     val liveDataFaces = MutableLiveData<Face>()
