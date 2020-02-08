@@ -69,29 +69,5 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
                 else -> FirebaseVisionImageMetadata.ROTATION_0
             }
         }
-
-        fun calcFitMatrix(result: Face, targetView: View, displayDegree: Int): Matrix {
-            val degree = displayDegree
-            val imageSize = result.imageSize
-            val matrix = Matrix()
-
-            val oddRotate = (Math.abs(degree / 90) % 2 == 0)
-            val w = (if (oddRotate) imageSize.height else imageSize.width).toFloat()
-            val h = (if (oddRotate) imageSize.width else imageSize.height).toFloat()
-
-            val sx = targetView.width.toFloat() / w
-            val sy = targetView.height.toFloat() / h
-            val scale = Math.max(sx, sy)
-            Log.d("calcFitMatrix", "${imageSize.width}, ${imageSize.height}, $w, $h, $sx, $sy, $scale")
-
-            matrix.postScale(1f / imageSize.width, 1f / imageSize.height)
-            matrix.postTranslate(-0.5f, -0.5f)
-            matrix.postRotate(degree.toFloat())
-            matrix.postScale(w, h)
-            matrix.postScale(scale, scale)
-            matrix.postTranslate(targetView.width / 2f, targetView.height / 2f)
-
-            return matrix
-        }
     }
 }

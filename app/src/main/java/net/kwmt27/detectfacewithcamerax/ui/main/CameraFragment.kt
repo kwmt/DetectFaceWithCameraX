@@ -293,7 +293,6 @@ class CameraFragment : Fragment() {
                 Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}")
                 val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null, viewFinder)
                 graphicOverlay.add(faceGraphic)
-                faceGraphic.postInvalidate()
             }
             graphicOverlay.postInvalidate()
 
