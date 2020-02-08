@@ -31,23 +31,16 @@ import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.util.Size
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
 import android.widget.ImageButton
-import androidx.camera.core.AspectRatio
-import androidx.camera.core.Camera
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.*
 import androidx.camera.core.ImageAnalysis.STRATEGY_BLOCK_PRODUCER
-import androidx.camera.core.ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
-import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCapture.Metadata
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.core.impl.ImageAnalysisConfig
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -59,24 +52,25 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.Navigation
-import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
-import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
-import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.kwmt27.detectfacewithcamerax.KEY_EVENT_ACTION
 import net.kwmt27.detectfacewithcamerax.KEY_EVENT_EXTRA
 import net.kwmt27.detectfacewithcamerax.MainActivity
 import net.kwmt27.detectfacewithcamerax.R
+import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
+import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
+import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
 import net.kwmt27.detectfacewithcamerax.ui.main.view.FaceGraphic
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import java.io.File
-import java.lang.Runnable
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.ArrayDeque
+import java.util.*
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -232,7 +226,7 @@ class CameraFragment : Fragment() {
         container = view as ConstraintLayout
         viewFinder = container.findViewById(R.id.view_finder)
         broadcastManager = LocalBroadcastManager.getInstance(view.context)
-        graphicOverlay = view.findViewById(R.id.graphicOverlay)
+        graphicOverlay = container.findViewById(R.id.graphicOverlay)
 
         // Set up the intent filter that will receive events from our main activity
         val filter = IntentFilter().apply { addAction(KEY_EVENT_ACTION) }
@@ -277,6 +271,13 @@ class CameraFragment : Fragment() {
         Log.d("CameraFragment", "update")
         val visionImage = face.visionFaces
 
+        if(isPortraitMode()) {
+            graphicOverlay.setCameraInfo(face.imageSize.height, face.imageSize.width, lensFacing)
+        } else {
+            graphicOverlay.setCameraInfo(face.imageSize.width, face.imageSize.height, lensFacing)
+        }
+
+
         val scope = CoroutineScope(Dispatchers.Main)
         scope.launch {
 
@@ -289,15 +290,34 @@ class CameraFragment : Fragment() {
             graphicOverlay.clear()
 
             for (f in faces) {
-                Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}")
-                val faceGraphic = FaceGraphic(graphicOverlay, f, 0, null)
+                Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}")
+                val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null, viewFinder)
                 graphicOverlay.add(faceGraphic)
                 faceGraphic.postInvalidate()
             }
             graphicOverlay.postInvalidate()
+
+
+//            val matrix = FaceAnalyzer.calcFitMatrix(face, viewFinder, viewFinder.display.rotation)
+//            graphicOverlay.matrix = matrix
+
         }
 
 
+    }
+
+    private fun isPortraitMode(): Boolean {
+        val orientation = context!!.resources.configuration.orientation
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            return false
+        }
+        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+            return true
+        }
+        Log.d(TAG,
+            "isPortraitMode returning false by default"
+        )
+        return false
     }
 
     /**
@@ -320,7 +340,6 @@ class CameraFragment : Fragment() {
         // Get screen metrics used to setup camera for full screen resolution
         val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
         Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
-
         val screenAspectRatio = aspectRatio(metrics.widthPixels, metrics.heightPixels)
         Log.d(TAG, "Preview aspect ratio: $screenAspectRatio")
 
@@ -337,13 +356,16 @@ class CameraFragment : Fragment() {
             // Preview
             preview = Preview.Builder()
                 // We request aspect ratio but no resolution
-                .setTargetAspectRatio(screenAspectRatio)
+//                .setTargetAspectRatio(screenAspectRatio)
+//                .setTargetResolution(Size(480, 864))
+                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
                 // Set initial target rotation
                 .setTargetRotation(rotation)
                 .build().apply {
                     // Default PreviewSurfaceProvider
                     previewSurfaceProvider = viewFinder.previewSurfaceProvider
                 }
+
 
             // ImageCapture
             imageCapture = ImageCapture.Builder()
@@ -359,7 +381,9 @@ class CameraFragment : Fragment() {
             // ImageAnalysis
             imageAnalyzer = ImageAnalysis.Builder()
                 // We request aspect ratio but no resolution
-                .setTargetAspectRatio(screenAspectRatio)
+//                .setTargetAspectRatio(screenAspectRatio)
+//                .setTargetResolution(Size(600, 800))
+                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
                 // Set initial target rotation, we will have to call this again if rotation changes
                 // during the lifecycle of this use case
                 .setTargetRotation(rotation)
@@ -384,6 +408,9 @@ class CameraFragment : Fragment() {
                 camera = cameraProvider.bindToLifecycle(
                     this as LifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer
                 )
+
+//                val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
+//                val previewSize = preview?.getAttachedSurfaceResolution(cameraId)!!
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
@@ -412,7 +439,6 @@ class CameraFragment : Fragment() {
 
     /** Method used to re-draw the camera UI controls, called every time configuration changes. */
     private fun updateCameraUi() {
-
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
             container.removeView(it)

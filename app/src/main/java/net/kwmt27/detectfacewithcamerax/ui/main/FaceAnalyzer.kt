@@ -1,7 +1,10 @@
 package net.kwmt27.detectfacewithcamerax.ui.main
 
+import android.graphics.Matrix
 import android.media.Image
 import android.util.Log
+import android.util.Size
+import android.view.View
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.lifecycle.MutableLiveData
@@ -15,7 +18,10 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
-data class Face(val visionFaces: FirebaseVisionImage)
+data class Face(
+    val visionFaces: FirebaseVisionImage,
+    val imageSize: Size
+)
 
 
 class FaceAnalyzer : ImageAnalysis.Analyzer {
@@ -35,22 +41,13 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
         val image = imageProxy.image!!
         val rotation = translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
-
         val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
+        val imageSize = Size(image.width, image.height)
         imageProxy.close()
-        liveDataFaces.postValue(Face(visionImage))
-
-
-
+        liveDataFaces.postValue(Face(visionImage, imageSize))
     }
 
-//    runBlocking {
-//        val faces = detectFace(visionImage)
-//        liveDataFaces.postValue(Face(faces))
-//    }
-
     suspend fun detectFace(image: FirebaseVisionImage): List<FirebaseVisionFace> =
-
         suspendCoroutine { continuation ->
             Log.d("FaceAnalyzer", "detectFace")
             detector.detectInImage(image)
@@ -70,6 +67,30 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
                 270 -> FirebaseVisionImageMetadata.ROTATION_270
                 else -> FirebaseVisionImageMetadata.ROTATION_0
             }
+        }
+
+        fun calcFitMatrix(result: Face, targetView: View, displayDegree: Int): Matrix {
+            val degree = displayDegree
+            val imageSize = result.imageSize
+            val matrix = Matrix()
+
+            val oddRotate = (Math.abs(degree / 90) % 2 == 0)
+            val w = (if (oddRotate) imageSize.height else imageSize.width).toFloat()
+            val h = (if (oddRotate) imageSize.width else imageSize.height).toFloat()
+
+            val sx = targetView.width.toFloat() / w
+            val sy = targetView.height.toFloat() / h
+            val scale = Math.max(sx, sy)
+            Log.d("calcFitMatrix", "${imageSize.width}, ${imageSize.height}, $w, $h, $sx, $sy, $scale")
+
+            matrix.postScale(1f / imageSize.width, 1f / imageSize.height)
+            matrix.postTranslate(-0.5f, -0.5f)
+            matrix.postRotate(degree.toFloat())
+            matrix.postScale(w, h)
+            matrix.postScale(scale, scale)
+            matrix.postTranslate(targetView.width / 2f, targetView.height / 2f)
+
+            return matrix
         }
     }
 }

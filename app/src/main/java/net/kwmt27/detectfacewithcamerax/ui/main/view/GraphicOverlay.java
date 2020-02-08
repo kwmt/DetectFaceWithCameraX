@@ -15,8 +15,12 @@ package net.kwmt27.detectfacewithcamerax.ui.main.view;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
+
+import androidx.annotation.NonNull;
 
 import com.google.android.gms.vision.CameraSource;
 
@@ -50,6 +54,7 @@ public class GraphicOverlay extends View {
     private float heightScaleFactor = 1.0f;
     private int facing = CameraSource.CAMERA_FACING_BACK;
     private final List<Graphic> graphics = new ArrayList<>();
+    private Matrix matrix = new Matrix();
 
     /**
      * Base class for a custom graphics object to be rendered within the graphic overlay. Subclass
@@ -85,12 +90,16 @@ public class GraphicOverlay extends View {
             return horizontal * overlay.widthScaleFactor;
         }
 
-        /** Adjusts a vertical value of the supplied value from the preview scale to the view scale. */
+        /**
+         * Adjusts a vertical value of the supplied value from the preview scale to the view scale.
+         */
         public float scaleY(float vertical) {
             return vertical * overlay.heightScaleFactor;
         }
 
-        /** Returns the application context of the app. */
+        /**
+         * Returns the application context of the app.
+         */
         public Context getApplicationContext() {
             return overlay.getContext().getApplicationContext();
         }
@@ -122,7 +131,9 @@ public class GraphicOverlay extends View {
         super(context, attrs);
     }
 
-    /** Removes all graphics from the overlay. */
+    /**
+     * Removes all graphics from the overlay.
+     */
     public void clear() {
         synchronized (lock) {
             graphics.clear();
@@ -130,7 +141,9 @@ public class GraphicOverlay extends View {
         postInvalidate();
     }
 
-    /** Adds a graphic to the overlay. */
+    /**
+     * Adds a graphic to the overlay.
+     */
     public void add(Graphic graphic) {
         synchronized (lock) {
             graphics.add(graphic);
@@ -138,7 +151,9 @@ public class GraphicOverlay extends View {
         postInvalidate();
     }
 
-    /** Removes a graphic from the overlay. */
+    /**
+     * Removes a graphic from the overlay.
+     */
     public void remove(Graphic graphic) {
         synchronized (lock) {
             graphics.remove(graphic);
@@ -157,22 +172,39 @@ public class GraphicOverlay extends View {
             this.facing = facing;
         }
         postInvalidate();
+        requestLayout();
     }
 
-    /** Draws the overlay with its associated graphic objects. */
+    /**
+     * Draws the overlay with its associated graphic objects.
+     */
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
         synchronized (lock) {
+//            canvas.save();
+//            canvas.setMatrix(matrix);
             if ((previewWidth != 0) && (previewHeight != 0)) {
                 widthScaleFactor = (float) getWidth() / previewWidth;
                 heightScaleFactor = (float) getHeight() / previewHeight;
             }
-
+            Log.d("MIDemoApp", "previewWidth:"+previewWidth+",previewHeight:"+previewHeight+",getWidth() :" + getWidth() + ",getHeight(): "+ getHeight() +",widthScaleFactor:" + widthScaleFactor + ", heightScaleFactor:" + heightScaleFactor);
             for (Graphic graphic : graphics) {
                 graphic.draw(canvas);
             }
+
+//            canvas.restore();
         }
+    }
+
+    @NonNull
+    @Override
+    public Matrix getMatrix() {
+        return matrix;
+    }
+
+    public void setMatrix(@NonNull Matrix matrix) {
+        this.matrix = matrix;
     }
 }
