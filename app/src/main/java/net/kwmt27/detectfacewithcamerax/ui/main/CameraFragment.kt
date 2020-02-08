@@ -38,6 +38,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
 import android.widget.ImageButton
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.*
 import androidx.camera.core.ImageAnalysis.STRATEGY_BLOCK_PRODUCER
 import androidx.camera.core.ImageCapture.Metadata
@@ -271,11 +272,6 @@ class CameraFragment : Fragment() {
         Log.d("CameraFragment", "update")
         val visionImage = face.visionFaces
 
-        if (isPortraitMode()) {
-            graphicOverlay.setCameraInfo(face.imageSize.height, face.imageSize.width, lensFacing)
-        } else {
-            graphicOverlay.setCameraInfo(face.imageSize.width, face.imageSize.height, lensFacing)
-        }
 
         val scope = CoroutineScope(Dispatchers.Main)
         scope.launch {
@@ -399,8 +395,16 @@ class CameraFragment : Fragment() {
                     this as LifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer
                 )
 
-//                val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
-//                val previewSize = preview?.getAttachedSurfaceResolution(cameraId)!!
+                val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
+                val previewSize = preview?.getAttachedSurfaceResolution(cameraId)!!
+                Log.d(TAG, "previewSize: $previewSize")
+
+                if (isPortraitMode()) {
+                    graphicOverlay.setCameraInfo(previewSize.height, previewSize.width, lensFacing)
+                } else {
+                    graphicOverlay.setCameraInfo(previewSize.width,previewSize.height, lensFacing)
+                }
+
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
