@@ -31,7 +31,6 @@ import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
-import android.util.Size
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -66,8 +65,10 @@ import net.kwmt27.detectfacewithcamerax.R
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
-import net.kwmt27.detectfacewithcamerax.ui.main.view.FaceGraphic
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceGraphic
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.Face
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
 import java.io.File
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
@@ -342,9 +343,9 @@ class CameraFragment : Fragment() {
             // Preview
             preview = Preview.Builder()
                 // We request aspect ratio but no resolution
-//                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetAspectRatio(screenAspectRatio)
 //                .setTargetResolution(Size(480, 864))
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
+//                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
                 // Set initial target rotation
                 .setTargetRotation(rotation)
                 .build().apply {
@@ -366,13 +367,13 @@ class CameraFragment : Fragment() {
             // ImageAnalysis
             imageAnalyzer = ImageAnalysis.Builder()
                 // We request aspect ratio but no resolution
-//                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetAspectRatio(screenAspectRatio)
 //                .setTargetResolution(Size(600, 800))
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
+//                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
                 // Set initial target rotation, we will have to call this again if rotation changes
                 // during the lifecycle of this use case
                 .setTargetRotation(rotation)
-                .setBackpressureStrategy(STRATEGY_BLOCK_PRODUCER)
+                .setBackpressureStrategy(STRATEGY_BLOCK_PRODUCER).setImageQueueDepth(8)
                 .build()
                 // The analyzer can then be assigned to the instance
                 .also {

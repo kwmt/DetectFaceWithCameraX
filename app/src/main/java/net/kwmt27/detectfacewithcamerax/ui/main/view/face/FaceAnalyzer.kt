@@ -1,7 +1,6 @@
-package net.kwmt27.detectfacewithcamerax.ui.main
+package net.kwmt27.detectfacewithcamerax.ui.main.view.face
 
 import android.util.Log
-import android.util.Size
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.lifecycle.MutableLiveData

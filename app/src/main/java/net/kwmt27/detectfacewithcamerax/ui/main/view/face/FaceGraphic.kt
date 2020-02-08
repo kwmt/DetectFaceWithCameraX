@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package net.kwmt27.detectfacewithcamerax.ui.main.view
+package net.kwmt27.detectfacewithcamerax.ui.main.view.face
 
 import android.graphics.*
 import android.util.Log
@@ -19,6 +19,7 @@ import androidx.camera.view.PreviewView
 import com.google.android.gms.vision.CameraSource
 import com.google.firebase.ml.vision.face.FirebaseVisionFace
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceLandmark
+import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay.Graphic
 
 /**
