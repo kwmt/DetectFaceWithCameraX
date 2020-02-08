@@ -271,12 +271,11 @@ class CameraFragment : Fragment() {
         Log.d("CameraFragment", "update")
         val visionImage = face.visionFaces
 
-        if(isPortraitMode()) {
+        if (isPortraitMode()) {
             graphicOverlay.setCameraInfo(face.imageSize.height, face.imageSize.width, lensFacing)
         } else {
             graphicOverlay.setCameraInfo(face.imageSize.width, face.imageSize.height, lensFacing)
         }
-
 
         val scope = CoroutineScope(Dispatchers.Main)
         scope.launch {
@@ -284,7 +283,7 @@ class CameraFragment : Fragment() {
             val faces = withContext(Dispatchers.Default) {
                 faceAnalyzer.detectFace(visionImage)
             }
-            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.size}" )
+            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.size}")
             if (faces.isEmpty()) return@launch
 
             graphicOverlay.clear()
@@ -295,14 +294,7 @@ class CameraFragment : Fragment() {
                 graphicOverlay.add(faceGraphic)
             }
             graphicOverlay.postInvalidate()
-
-
-//            val matrix = FaceAnalyzer.calcFitMatrix(face, viewFinder, viewFinder.display.rotation)
-//            graphicOverlay.matrix = matrix
-
         }
-
-
     }
 
     private fun isPortraitMode(): Boolean {
@@ -364,7 +356,6 @@ class CameraFragment : Fragment() {
                     // Default PreviewSurfaceProvider
                     previewSurfaceProvider = viewFinder.previewSurfaceProvider
                 }
-
 
             // ImageCapture
             imageCapture = ImageCapture.Builder()
@@ -501,7 +492,6 @@ class CameraFragment : Fragment() {
         }
     }
 
-
     /**
      * Our custom image analysis class.
      *
@@ -559,7 +549,7 @@ class CameraFragment : Fragment() {
             val timestampFirst = frameTimestamps.peekFirst() ?: currentTime
             val timestampLast = frameTimestamps.peekLast() ?: currentTime
             framesPerSecond = 1.0 / ((timestampFirst - timestampLast) /
-                    frameTimestamps.size.coerceAtLeast(1).toDouble()) * 1000.0
+                frameTimestamps.size.coerceAtLeast(1).toDouble()) * 1000.0
 
             // Calculate the average luma no more often than every second
             if (frameTimestamps.first - lastAnalyzedTimestamp >= TimeUnit.SECONDS.toMillis(1)) {
@@ -596,7 +586,7 @@ class CameraFragment : Fragment() {
         private fun createFile(baseFolder: File, format: String, extension: String) =
             File(
                 baseFolder, SimpleDateFormat(format, Locale.US)
-                    .format(System.currentTimeMillis()) + extension
+                .format(System.currentTimeMillis()) + extension
             )
     }
 }
@@ -605,5 +595,4 @@ class ThreadPerTaskExecutor : Executor {
     override fun execute(r: Runnable) {
         Thread(r).start()
     }
-
 }
