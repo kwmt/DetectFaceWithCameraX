@@ -60,30 +60,16 @@ class FaceGraphic(
      * Draws the face annotations for position on the supplied canvas.
      */
     override fun draw(canvas: Canvas) {
-        Log.d(
-            "FaceGraphic",
-            "width:" + canvas.width + ", height:" + canvas.height
-        )
-        canvas.drawRect(
-            0f,
-            0f,
-            canvas.width / 2.toFloat(),
-            canvas.height / 2.toFloat(),
-            boxPaint
-        )
-        canvas.drawRect(
-            canvas.width / 2.toFloat(),
-            canvas.height / 2.toFloat(),
-            canvas.width.toFloat(),
-            canvas.height.toFloat(),
-            boxPaint
-        )
-        val face = firebaseVisionFace ?: return
+        val face = firebaseVisionFace
         // Draws a circle at the position of the detected face, with the face's track id below.
-// An offset is used on the Y axis in order to draw the circle, face id and happiness level in the top area
-// of the face's bounding box
+        // An offset is used on the Y axis in order to draw the circle, face id and happiness level in the top area
+        // of the face's bounding box
         val x = translateX(face.boundingBox.centerX().toFloat())
         val y = translateY(face.boundingBox.centerY().toFloat())
+
+        Log.d("FaceGraphic", "(x,y)=($x, $y), (centerX, centerY)=(${face.boundingBox.centerX()}, ${face.boundingBox.centerY()}),left= ${face.boundingBox.left}, right=${face.boundingBox.top} ")
+
+
         canvas.drawCircle(
             x,
             y - 4 * ID_Y_OFFSET,
@@ -195,6 +181,5 @@ class FaceGraphic(
         private const val ID_Y_OFFSET = 50.0f
         private const val ID_X_OFFSET = -50.0f
         private const val BOX_STROKE_WIDTH = 5.0f
-
     }
 }

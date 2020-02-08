@@ -15,8 +15,7 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 data class Face(
-    val visionFaces: FirebaseVisionImage,
-    val imageSize: Size
+    val visionFaces: FirebaseVisionImage
 )
 
 class FaceAnalyzer : ImageAnalysis.Analyzer {
@@ -37,9 +36,8 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
         val rotation = translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
         val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
-        val imageSize = Size(image.width, image.height)
         imageProxy.close()
-        liveDataFaces.postValue(Face(visionImage, imageSize))
+        liveDataFaces.postValue(Face(visionImage))
     }
 
     suspend fun detectFace(image: FirebaseVisionImage): List<FirebaseVisionFace> =

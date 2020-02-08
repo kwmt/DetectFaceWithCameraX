@@ -272,11 +272,10 @@ class CameraFragment : Fragment() {
         Log.d("CameraFragment", "update")
         val visionImage = face.visionFaces
 
-
-        val scope = CoroutineScope(Dispatchers.Main)
+        val scope = CoroutineScope(Dispatchers.Default)
         scope.launch {
 
-            val faces = withContext(Dispatchers.Default) {
+            val faces = withContext(Dispatchers.IO) {
                 faceAnalyzer.detectFace(visionImage)
             }
             Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.size}")
@@ -294,7 +293,7 @@ class CameraFragment : Fragment() {
     }
 
     private fun isPortraitMode(): Boolean {
-        val orientation = context!!.resources.configuration.orientation
+        val orientation = requireContext().resources.configuration.orientation
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
             return false
         }
