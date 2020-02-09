@@ -13,6 +13,7 @@ import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import kotlin.coroutines.resume
@@ -20,7 +21,7 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 data class Face(
-    val visionFaces: FirebaseVisionImage
+    val visionFaces: List<FirebaseVisionFace>
 )
 
 class FaceAnalyzer : ImageAnalysis.Analyzer {
@@ -40,12 +41,23 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
         val image = imageProxy.image!!
         val rotation = translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
-        val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
-        imageProxy.close()
-        liveDataFaces.postValue(Face(visionImage))
+
+//        val scope = CoroutineScope(Dispatchers.Default)
+//        scope.launch {
+//            val visionFaces = detect(visionImage)
+//            liveDataFaces.postValue(Face(visionFaces))
+//        }
+
+        runBlocking {
+            val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
+            imageProxy.close()
+
+            val visionFaces = detect(visionImage)
+            liveDataFaces.postValue(Face(visionFaces))
+        }
     }
 
-    suspend fun detectFace(image: FirebaseVisionImage): List<FirebaseVisionFace> =
+    suspend fun detect(image: FirebaseVisionImage): List<FirebaseVisionFace> =
         suspendCoroutine { continuation ->
             Log.d("FaceAnalyzer", "detectFace")
             detector.detectInImage(image)
@@ -58,27 +70,20 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
 
     fun updateFaceUI(graphicOverlay: GraphicOverlay, face: Face, lensFacing: Int, viewFinder: PreviewView) {
         Log.d("CameraFragment", "update")
-        val visionImage = face.visionFaces
+        val visionFaces = face.visionFaces
+        Log.d("CameraFragment", "faces.isNotEmpty(): ${visionFaces.size}")
+        if (visionFaces.isEmpty()) return
 
-        val scope = CoroutineScope(Dispatchers.Default)
-        scope.launch {
+        graphicOverlay.clear()
 
-            val faces = withContext(Dispatchers.IO) {
-                detectFace(visionImage)
-            }
-            Log.d("CameraFragment", "faces.isNotEmpty(): ${faces.size}")
-            if (faces.isEmpty()) return@launch
-
-            graphicOverlay.clear()
-
-            for (f in faces) {
-                Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}")
-                val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null, viewFinder)
-                graphicOverlay.add(faceGraphic)
-            }
-            graphicOverlay.postInvalidate()
+        for (f in visionFaces) {
+            Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}")
+            val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null, viewFinder)
+            graphicOverlay.add(faceGraphic)
         }
+        graphicOverlay.postInvalidate()
     }
+
     companion object {
         fun translateFirebaseRotation(rotationDegrees: Int): Int {
             return when (rotationDegrees) {

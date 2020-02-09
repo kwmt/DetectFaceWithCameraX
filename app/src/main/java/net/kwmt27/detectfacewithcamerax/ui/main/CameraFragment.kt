@@ -31,6 +31,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.util.Size
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -40,6 +41,7 @@ import android.widget.ImageButton
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.*
 import androidx.camera.core.ImageAnalysis.STRATEGY_BLOCK_PRODUCER
+import androidx.camera.core.ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
 import androidx.camera.core.ImageCapture.Metadata
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -54,10 +56,8 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.Navigation
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.RequestOptions
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.kwmt27.detectfacewithcamerax.KEY_EVENT_ACTION
 import net.kwmt27.detectfacewithcamerax.KEY_EVENT_EXTRA
 import net.kwmt27.detectfacewithcamerax.MainActivity
@@ -65,10 +65,9 @@ import net.kwmt27.detectfacewithcamerax.R
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
-import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceGraphic
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
-import net.kwmt27.detectfacewithcamerax.ui.main.view.face.Face
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
+import net.kwmt27.detectfacewithcamerax.ui.main.view.textrecoginition.TextAnalyzer
 import java.io.File
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
@@ -107,6 +106,7 @@ class CameraFragment : Fragment() {
     private var camera: Camera? = null
 
     private val faceAnalyzer = FaceAnalyzer()
+    private val textAnalyzer = TextAnalyzer()
     private lateinit var graphicOverlay: GraphicOverlay
     private val executor = Executors.newSingleThreadExecutor()
 
@@ -264,8 +264,12 @@ class CameraFragment : Fragment() {
             }
         }
 
-        faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
-            faceAnalyzer.updateFaceUI(graphicOverlay, face, lensFacing, viewFinder)
+//        faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
+//            faceAnalyzer.updateFaceUI(graphicOverlay, face, lensFacing, viewFinder)
+//        })
+
+        textAnalyzer.liveData.observe(viewLifecycleOwner, Observer {result ->
+            textAnalyzer.updateTextUI(graphicOverlay, result)
         })
     }
 
@@ -319,9 +323,9 @@ class CameraFragment : Fragment() {
             // Preview
             preview = Preview.Builder()
                 // We request aspect ratio but no resolution
-                .setTargetAspectRatio(screenAspectRatio)
+//                .setTargetAspectRatio(screenAspectRatio)
 //                .setTargetResolution(Size(480, 864))
-//                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
+                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
                 // Set initial target rotation
                 .setTargetRotation(rotation)
                 .build().apply {
@@ -334,7 +338,8 @@ class CameraFragment : Fragment() {
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 // We request aspect ratio but no resolution to match preview config, but letting
                 // CameraX optimize for whatever specific resolution best fits requested capture mode
-                .setTargetAspectRatio(screenAspectRatio)
+//                .setTargetAspectRatio(screenAspectRatio)
+                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
                 // Set initial target rotation, we will have to call this again if rotation changes
                 // during the lifecycle of this use case
                 .setTargetRotation(rotation)
@@ -343,13 +348,13 @@ class CameraFragment : Fragment() {
             // ImageAnalysis
             imageAnalyzer = ImageAnalysis.Builder()
                 // We request aspect ratio but no resolution
-                .setTargetAspectRatio(screenAspectRatio)
+//                .setTargetAspectRatio(screenAspectRatio)
 //                .setTargetResolution(Size(600, 800))
-//                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
+                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
                 // Set initial target rotation, we will have to call this again if rotation changes
                 // during the lifecycle of this use case
                 .setTargetRotation(rotation)
-                .setBackpressureStrategy(STRATEGY_BLOCK_PRODUCER).setImageQueueDepth(8)
+                .setBackpressureStrategy(STRATEGY_KEEP_ONLY_LATEST)//.setImageQueueDepth(10)
                 .build()
                 // The analyzer can then be assigned to the instance
                 .also {
@@ -358,7 +363,8 @@ class CameraFragment : Fragment() {
 //                        // We log image analysis results here - you should do something useful instead!
 //                        Log.d(TAG, "Average luminosity: $luma")
 //                    })
-                    it.setAnalyzer(executor, faceAnalyzer)
+//                    it.setAnalyzer(executor, faceAnalyzer)
+                    it.setAnalyzer(mainExecutor, textAnalyzer)
                 }
 
             // Must unbind the use-cases before rebinding them.
@@ -367,9 +373,7 @@ class CameraFragment : Fragment() {
             try {
                 // A variable number of use-cases can be passed here -
                 // camera provides access to CameraControl & CameraInfo
-                camera = cameraProvider.bindToLifecycle(
-                    this as LifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer
-                )
+                camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer)
 
                 val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
                 val previewSize = preview?.getAttachedSurfaceResolution(cameraId)!!

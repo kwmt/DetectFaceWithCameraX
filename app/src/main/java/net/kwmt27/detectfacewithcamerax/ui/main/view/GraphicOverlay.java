@@ -172,7 +172,6 @@ public class GraphicOverlay extends View {
             this.facing = facing;
         }
         postInvalidate();
-        requestLayout();
     }
 
     /**
