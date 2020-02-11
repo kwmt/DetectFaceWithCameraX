@@ -28,4 +28,10 @@
     <string name="delete_button_alt">Delete</string>
     <string name="delete_dialog">Delete current photo?</string>
     <string name="delete_title">Confirm</string>
+
+    <string-array name="analyzers">
+        <item>Text</item>
+        <item>Face</item>
+    </string-array>
+
 </resources>

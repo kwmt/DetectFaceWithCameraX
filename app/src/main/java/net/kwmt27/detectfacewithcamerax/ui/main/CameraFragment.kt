@@ -37,7 +37,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.ImageButton
+import android.widget.Spinner
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.*
 import androidx.camera.core.ImageAnalysis.STRATEGY_BLOCK_PRODUCER
@@ -107,6 +110,7 @@ class CameraFragment : Fragment() {
 
     private val faceAnalyzer = FaceAnalyzer()
     private val textAnalyzer = TextAnalyzer()
+    private var analyzer: ImageAnalysis.Analyzer = textAnalyzer
     private lateinit var graphicOverlay: GraphicOverlay
     private val executor = Executors.newSingleThreadExecutor()
 
@@ -264,11 +268,11 @@ class CameraFragment : Fragment() {
             }
         }
 
-//        faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
-//            faceAnalyzer.updateFaceUI(graphicOverlay, face, lensFacing, viewFinder)
-//        })
+        faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
+            faceAnalyzer.updateFaceUI(graphicOverlay, face, lensFacing, viewFinder)
+        })
 
-        textAnalyzer.liveData.observe(viewLifecycleOwner, Observer {result ->
+        textAnalyzer.liveData.observe(viewLifecycleOwner, Observer { result ->
             textAnalyzer.updateTextUI(graphicOverlay, result)
         })
     }
@@ -281,7 +285,8 @@ class CameraFragment : Fragment() {
         if (orientation == Configuration.ORIENTATION_PORTRAIT) {
             return true
         }
-        Log.d(TAG,
+        Log.d(
+            TAG,
             "isPortraitMode returning false by default"
         )
         return false
@@ -364,7 +369,7 @@ class CameraFragment : Fragment() {
 //                        Log.d(TAG, "Average luminosity: $luma")
 //                    })
 //                    it.setAnalyzer(executor, faceAnalyzer)
-                    it.setAnalyzer(mainExecutor, textAnalyzer)
+                    it.setAnalyzer(mainExecutor, analyzer)
                 }
 
             // Must unbind the use-cases before rebinding them.
@@ -373,7 +378,13 @@ class CameraFragment : Fragment() {
             try {
                 // A variable number of use-cases can be passed here -
                 // camera provides access to CameraControl & CameraInfo
-                camera = cameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview, imageCapture, imageAnalyzer)
+                camera = cameraProvider.bindToLifecycle(
+                    this as LifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageCapture,
+                    imageAnalyzer
+                )
 
                 val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
                 val previewSize = preview?.getAttachedSurfaceResolution(cameraId)!!
@@ -410,11 +421,51 @@ class CameraFragment : Fragment() {
         return AspectRatio.RATIO_16_9
     }
 
+    enum class AnalyzerMenu {
+        Text, Memo;
+
+        companion object {
+            fun typeOf(value: Int): AnalyzerMenu? {
+                return values().firstOrNull { it.ordinal == value }
+            }
+        }
+    }
+
     /** Method used to re-draw the camera UI controls, called every time configuration changes. */
     private fun updateCameraUi() {
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
             container.removeView(it)
+        }
+
+        val spinner = container.findViewById<Spinner>(R.id.spinner)?.let {
+            ArrayAdapter.createFromResource(
+                this.requireContext(),
+                R.array.analyzers,
+                android.R.layout.simple_spinner_item
+            ).also { adapter ->
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                it.adapter = adapter
+                it.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onNothingSelected(parent: AdapterView<*>?) {
+
+                    }
+
+                    override fun onItemSelected(
+                        parent: AdapterView<*>?,
+                        view: View?,
+                        position: Int,
+                        id: Long
+                    ) {
+                        val menu = AnalyzerMenu.typeOf(position) ?: return
+                        analyzer = when (menu) {
+                            AnalyzerMenu.Text -> textAnalyzer
+                            AnalyzerMenu.Memo -> faceAnalyzer
+                        }
+                        bindCameraUseCases()
+                    }
+                }
+            }
         }
 
         // Inflate a new view containing all UI for controlling the camera
@@ -532,7 +583,7 @@ class CameraFragment : Fragment() {
             val timestampFirst = frameTimestamps.peekFirst() ?: currentTime
             val timestampLast = frameTimestamps.peekLast() ?: currentTime
             framesPerSecond = 1.0 / ((timestampFirst - timestampLast) /
-                frameTimestamps.size.coerceAtLeast(1).toDouble()) * 1000.0
+                    frameTimestamps.size.coerceAtLeast(1).toDouble()) * 1000.0
 
             // Calculate the average luma no more often than every second
             if (frameTimestamps.first - lastAnalyzedTimestamp >= TimeUnit.SECONDS.toMillis(1)) {
@@ -569,7 +620,7 @@ class CameraFragment : Fragment() {
         private fun createFile(baseFolder: File, format: String, extension: String) =
             File(
                 baseFolder, SimpleDateFormat(format, Locale.US)
-                .format(System.currentTimeMillis()) + extension
+                    .format(System.currentTimeMillis()) + extension
             )
     }
 }
