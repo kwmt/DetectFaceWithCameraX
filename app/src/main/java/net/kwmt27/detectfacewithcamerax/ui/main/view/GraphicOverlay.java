@@ -21,6 +21,7 @@ import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.camera.core.CameraSelector;
 
 import com.google.android.gms.vision.CameraSource;
 
@@ -52,7 +53,7 @@ public class GraphicOverlay extends View {
     private float widthScaleFactor = 1.0f;
     private int previewHeight;
     private float heightScaleFactor = 1.0f;
-    private int facing = CameraSource.CAMERA_FACING_BACK;
+    private int facing = CameraSelector.LENS_FACING_BACK;
     private final List<Graphic> graphics = new ArrayList<>();
     private Matrix matrix = new Matrix();
 
@@ -108,7 +109,8 @@ public class GraphicOverlay extends View {
          * Adjusts the x coordinate from the preview's coordinate system to the view coordinate system.
          */
         public float translateX(float x) {
-            if (overlay.facing == CameraSource.CAMERA_FACING_FRONT) {
+            Log.d("GraphicOVerlay", "overlay.facing:" + overlay.facing);
+            if (overlay.facing == CameraSelector.LENS_FACING_FRONT) {
                 return overlay.getWidth() - scaleX(x);
             } else {
                 return scaleX(x);
