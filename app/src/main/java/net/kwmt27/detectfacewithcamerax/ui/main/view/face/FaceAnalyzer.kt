@@ -41,17 +41,10 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
         val image = imageProxy.image!!
         val rotation = translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
-
-//        val scope = CoroutineScope(Dispatchers.Default)
-//        scope.launch {
-//            val visionFaces = detect(visionImage)
-//            liveDataFaces.postValue(Face(visionFaces))
-//        }
-
-        runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default)
+        scope.launch {
             val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
             imageProxy.close()
-
             val visionFaces = detect(visionImage)
             liveDataFaces.postValue(Face(visionFaces))
         }

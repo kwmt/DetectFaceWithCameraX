@@ -110,7 +110,7 @@ class CameraFragment : Fragment() {
 
     private val faceAnalyzer = FaceAnalyzer()
     private val textAnalyzer = TextAnalyzer()
-    private var analyzer: ImageAnalysis.Analyzer = textAnalyzer
+    private var analyzer: ImageAnalysis.Analyzer = faceAnalyzer //textAnalyzer
     private lateinit var graphicOverlay: GraphicOverlay
     private val executor = Executors.newSingleThreadExecutor()
 
