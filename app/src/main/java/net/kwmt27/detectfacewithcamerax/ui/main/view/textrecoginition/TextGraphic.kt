@@ -45,8 +45,8 @@ class TextGraphic(
 
     companion object {
 
-        private const val TEXT_COLOR = Color.WHITE
-        private const val TEXT_SIZE = 54.0f
+        private const val TEXT_COLOR = Color.RED
+        private const val TEXT_SIZE = 70.0f
         private const val STROKE_WIDTH = 4.0f
     }
 }
