@@ -30,8 +30,8 @@
     <string name="delete_title">Confirm</string>
 
     <string-array name="analyzers">
-        <item>Text</item>
         <item>Face</item>
+        <item>Text</item>
     </string-array>
 
 </resources>

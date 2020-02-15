@@ -43,7 +43,6 @@ import android.widget.ImageButton
 import android.widget.Spinner
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.*
-import androidx.camera.core.ImageAnalysis.STRATEGY_BLOCK_PRODUCER
 import androidx.camera.core.ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
 import androidx.camera.core.ImageCapture.Metadata
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -112,7 +111,7 @@ class CameraFragment : Fragment() {
     private val textAnalyzer = TextAnalyzer()
     private var analyzer: ImageAnalysis.Analyzer = faceAnalyzer //textAnalyzer
     private lateinit var graphicOverlay: GraphicOverlay
-    private val executor = Executors.newSingleThreadExecutor()
+    private lateinit var executor : Executor
 
     /** Volume down button receiver used to trigger shutter */
     private val volumeDownReceiver = object : BroadcastReceiver() {
@@ -148,6 +147,7 @@ class CameraFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mainExecutor = ContextCompat.getMainExecutor(requireContext())
+        executor = Executors.newSingleThreadExecutor()
     }
 
     override fun onResume() {
@@ -369,7 +369,7 @@ class CameraFragment : Fragment() {
 //                        Log.d(TAG, "Average luminosity: $luma")
 //                    })
 //                    it.setAnalyzer(executor, faceAnalyzer)
-                    it.setAnalyzer(mainExecutor, analyzer)
+                    it.setAnalyzer(executor, analyzer)
                 }
 
             // Must unbind the use-cases before rebinding them.
@@ -422,7 +422,7 @@ class CameraFragment : Fragment() {
     }
 
     enum class AnalyzerMenu {
-        Text, Memo;
+        Face, Text ;
 
         companion object {
             fun typeOf(value: Int): AnalyzerMenu? {
@@ -436,36 +436,6 @@ class CameraFragment : Fragment() {
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
             container.removeView(it)
-        }
-
-        val spinner = container.findViewById<Spinner>(R.id.spinner)?.let {
-            ArrayAdapter.createFromResource(
-                this.requireContext(),
-                R.array.analyzers,
-                android.R.layout.simple_spinner_item
-            ).also { adapter ->
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                it.adapter = adapter
-                it.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onNothingSelected(parent: AdapterView<*>?) {
-
-                    }
-
-                    override fun onItemSelected(
-                        parent: AdapterView<*>?,
-                        view: View?,
-                        position: Int,
-                        id: Long
-                    ) {
-                        val menu = AnalyzerMenu.typeOf(position) ?: return
-                        analyzer = when (menu) {
-                            AnalyzerMenu.Text -> textAnalyzer
-                            AnalyzerMenu.Memo -> faceAnalyzer
-                        }
-                        bindCameraUseCases()
-                    }
-                }
-            }
         }
 
         // Inflate a new view containing all UI for controlling the camera
@@ -501,6 +471,37 @@ class CameraFragment : Fragment() {
                         )
                     }, ANIMATION_SLOW_MILLIS)
                 }
+            }
+        }
+
+        controls.findViewById<Spinner>(R.id.spinner)?.let {
+            ArrayAdapter.createFromResource(
+                this.requireContext(),
+                R.array.analyzers,
+                android.R.layout.simple_spinner_item
+            ).also { adapter ->
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                it.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onNothingSelected(parent: AdapterView<*>?) {
+
+                    }
+
+                    override fun onItemSelected(
+                        parent: AdapterView<*>?,
+                        view: View?,
+                        position: Int,
+                        id: Long
+                    ) {
+                        val menu = AnalyzerMenu.typeOf(position) ?: return
+                        analyzer = when (menu) {
+                            AnalyzerMenu.Face -> faceAnalyzer
+                            AnalyzerMenu.Text -> textAnalyzer
+                        }
+                        bindCameraUseCases()
+                    }
+                }
+                it.adapter = adapter
+
             }
         }
 
