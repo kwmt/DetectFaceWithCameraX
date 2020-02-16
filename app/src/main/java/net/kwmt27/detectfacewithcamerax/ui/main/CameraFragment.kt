@@ -26,7 +26,6 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.hardware.display.DisplayManager
 import android.media.MediaScannerConnection
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -50,7 +49,6 @@ import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
-import androidx.core.net.toUri
 import androidx.core.view.setPadding
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner
@@ -106,7 +104,7 @@ class CameraFragment : Fragment() {
     private var lensFacing: Int = CameraSelector.LENS_FACING_BACK
     private var preview: Preview? = null
     private var imageCapture: ImageCapture? = null
-    private var imageAnalyzer: ImageAnalysis? = null
+    private var imageAnalysis: ImageAnalysis? = null
     private var camera: Camera? = null
 
     private val faceAnalyzer = FaceAnalyzer()
@@ -141,7 +139,7 @@ class CameraFragment : Fragment() {
             if (displayId == this@CameraFragment.displayId) {
                 Log.d(TAG, "Rotation changed: ${view.display.rotation}")
                 imageCapture?.setTargetRotation(view.display.rotation)
-                imageAnalyzer?.setTargetRotation(view.display.rotation)
+                imageAnalysis?.setTargetRotation(view.display.rotation)
             }
         } ?: Unit
     }
@@ -356,7 +354,7 @@ class CameraFragment : Fragment() {
                 .build()
 
             // ImageAnalysis
-            imageAnalyzer = ImageAnalysis.Builder()
+            imageAnalysis = ImageAnalysis.Builder()
                 // We request aspect ratio but no resolution
 //                .setTargetAspectRatio(screenAspectRatio)
 //                .setTargetResolution(Size(600, 800))
@@ -388,7 +386,7 @@ class CameraFragment : Fragment() {
                     cameraSelector,
                     preview,
                     imageCapture,
-                    imageAnalyzer
+                    imageAnalysis
                 )
 
                 val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
