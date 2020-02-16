@@ -18,6 +18,5 @@ package net.kwmt27.detectfacewithcamerax
 
 import android.app.Application
 
-/** It implements CameraXConfig.Provider */
 class CameraXBasic: Application() {
 }
