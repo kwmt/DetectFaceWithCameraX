@@ -9,6 +9,9 @@ import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.google.firebase.ml.vision.text.FirebaseVisionText
 import com.google.firebase.ml.vision.text.FirebaseVisionTextRecognizer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
 import kotlin.coroutines.resume
@@ -41,18 +44,19 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
         val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
         imageProxy.close()
 
-        detectTextNormalListener(visionImage) {
-            liveData.postValue(it)
+//        detectTextNormalListener(visionImage) {
+//            liveData.postValue(it)
+//            isDetecting = false
+//        }
+
+
+        imageProxy.close()
+        val scope = CoroutineScope(Dispatchers.Default)
+        val job = scope.launch {
+            val visionText = detectText(visionImage)
+            liveData.postValue(TextAnalyzerResult(visionText))
             isDetecting = false
         }
-
-
-//        imageProxy.close()
-//        val scope = CoroutineScope(Dispatchers.Default)
-//        scope.launch {
-//            val visionText = detectText(visionImage)
-//            liveData.postValue(TextAnalyzerResult(visionText))
-//        }
     }
 
     private suspend fun detectText(image: FirebaseVisionImage): FirebaseVisionText =
