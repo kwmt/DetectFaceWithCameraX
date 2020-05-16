@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -30,14 +31,14 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
 
     val liveData = MutableLiveData<TextAnalyzerResult>()
 
-    private var isDetecting = false
+    private var isDetecting = AtomicBoolean(false)
 
     override fun analyze(imageProxy: ImageProxy) {
-        if(isDetecting) {
+        if(isDetecting.get()) {
             imageProxy.close()
             return
         }
-        isDetecting = true
+        isDetecting.set(true)
         val image = imageProxy.image!!
         val rotation = FaceAnalyzer.translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
@@ -55,7 +56,7 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
         val job = scope.launch {
             val visionText = detectText(visionImage)
             liveData.postValue(TextAnalyzerResult(visionText))
-            isDetecting = false
+            isDetecting.set(false)
         }
     }
 
