@@ -26,6 +26,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.hardware.display.DisplayManager
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -51,7 +52,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
 import androidx.core.view.setPadding
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -68,6 +68,7 @@ import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
+import net.kwmt27.detectfacewithcamerax.ui.main.view.ImageProcessor
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.Face
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceDetector
@@ -78,6 +79,7 @@ import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayList
@@ -114,7 +116,8 @@ class CameraFragment : Fragment() {
     private var textAnalyzer: TextAnalyzer? = null
     private var analyzer: ImageAnalysis.Analyzer? = null
     private lateinit var graphicOverlay: GraphicOverlay
-    private lateinit var executor: Executor
+    private lateinit var cameraExecutor: ExecutorService
+    private var cameraProvider: ProcessCameraProvider? = null
 
     /** Volume down button receiver used to trigger shutter */
     private val volumeDownReceiver = object : BroadcastReceiver() {
@@ -147,12 +150,6 @@ class CameraFragment : Fragment() {
         } ?: Unit
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        mainExecutor = ContextCompat.getMainExecutor(requireContext())
-        executor = Executors.newSingleThreadExecutor()
-    }
-
     override fun onResume() {
         super.onResume()
         // Make sure that all permissions are still present, since the
@@ -166,6 +163,7 @@ class CameraFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        cameraExecutor.shutdown()
         // Unregister the broadcast receivers and listeners
         broadcastManager.unregisterReceiver(volumeDownReceiver)
         displayManager.unregisterDisplayListener(displayListener)
@@ -197,13 +195,13 @@ class CameraFragment : Fragment() {
     }
 
     /** Define callback that will be triggered after a photo has been taken and saved to disk */
-    private val imageSavedListener = object : ImageCapture.OnImageSavedCallback {
-        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+    private fun imageSavedListener(photoFile: File) = object : ImageCapture.OnImageSavedCallback {
+        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
 
-            val savedUri = outputFileResults.savedUri
+            val savedUri = output.savedUri ?: Uri.fromFile(photoFile)
             Log.d(TAG, "Photo capture succeeded: $savedUri")
 
-            val file = outputFileResults.savedUri?.toFile() ?: return
+            val file = output.savedUri?.toFile() ?: return
             // We can only change the foreground Drawable using API level 23+ API
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 // Update the gallery thumbnail with latest picture taken
@@ -214,7 +212,7 @@ class CameraFragment : Fragment() {
             // so if you only target API level 24+ you can remove this statement
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
                 requireActivity().sendBroadcast(
-                    Intent(android.hardware.Camera.ACTION_NEW_PICTURE, outputFileResults.savedUri)
+                    Intent(android.hardware.Camera.ACTION_NEW_PICTURE, output.savedUri)
                 )
             }
 
@@ -223,7 +221,7 @@ class CameraFragment : Fragment() {
             // scan them using [MediaScannerConnection]
             val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
             MediaScannerConnection.scanFile(
-                context, arrayOf(savedUri.toString()), arrayOf(mimeType), null
+                context, arrayOf(savedUri.toFile().absolutePath), arrayOf(mimeType), null
             )
         }
 
@@ -235,6 +233,10 @@ class CameraFragment : Fragment() {
     @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        mainExecutor = ContextCompat.getMainExecutor(requireContext())
+        cameraExecutor = Executors.newSingleThreadExecutor()
+
         container = view as ConstraintLayout
         viewFinder = container.findViewById(R.id.view_finder)
         broadcastManager = LocalBroadcastManager.getInstance(view.context)
@@ -252,6 +254,8 @@ class CameraFragment : Fragment() {
         // Determine the output directory
         outputDirectory = MainActivity.getOutputDirectory(requireContext())
 
+        selectDetector()
+
         // Wait for the views to be properly laid out
         viewFinder.post {
 
@@ -261,32 +265,33 @@ class CameraFragment : Fragment() {
             // Build UI controls
             updateCameraUi()
 
-            // Bind use cases
-            bindCameraUseCases()
-
-            // In the background, load latest photo taken (if any) for gallery thumbnail
-            lifecycleScope.launch(Dispatchers.IO) {
-                outputDirectory.listFiles { file ->
-                    EXTENSION_WHITELIST.contains(file.extension.toUpperCase(Locale.ROOT))
-                }?.max()?.let {
-                    setGalleryThumbnail(it)
-                }
-            }
+            // Set up the camera and its use cases
+            setUpCamera()
         }
 
-        val faceDetector = FaceDetector()
-        faceAnalyzer = FaceAnalyzer {
-            //            lifecycleScope.launch(Dispatchers.IO) {
-//                val visionFaces= faceDetector.detect(it)
-//                updateFaceUI(graphicOverlay, Face(visionFaces), lensFacing)
+    }
+
+    private fun selectDetector() {
+        analyzer = LuminosityAnalyzer()
+
+//        analyzer = TextAnalyzer().apply {
+//            this.liveData.observe(viewLifecycleOwner, Observer { result ->
+//                this.updateTextUI(graphicOverlay, result)
+//            })
+//        }
+
+        //        val faceDetector = FaceDetector()
+//        faceAnalyzer = FaceAnalyzer {
+//            //            lifecycleScope.launch(Dispatchers.IO) {
+////                val visionFaces= faceDetector.detect(it)
+////                updateFaceUI(graphicOverlay, Face(visionFaces), lensFacing)
+////            }
+//
+//            faceDetector.detectRaw(it) { results ->
+//                updateFaceUI(graphicOverlay, Face(results), lensFacing)
 //            }
-
-            faceDetector.detectRaw(it) { results ->
-                updateFaceUI(graphicOverlay, Face(results), lensFacing)
-            }
-        }
+//        }
 //        textAnalyzer = TextAnalyzer()
-        analyzer = faceAnalyzer
 
 //        faceAnalyzer?.liveDataFaces?.observe(viewLifecycleOwner, Observer { face ->
 //
@@ -295,6 +300,7 @@ class CameraFragment : Fragment() {
 //        textAnalyzer?.liveData?.observe(viewLifecycleOwner, Observer { result ->
 //            textAnalyzer?.updateTextUI(graphicOverlay, result)
 //        })
+
     }
 
     fun updateFaceUI(
@@ -350,12 +356,38 @@ class CameraFragment : Fragment() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         updateCameraUi()
+
+        // Enable or disable switching between cameras
+        updateCameraSwitchButton()
     }
 
     val threadPerTaskExecutor = ThreadPerTaskExecutor()
-    /** Declare and bind preview, capture and analysis use cases */
-    private fun bindCameraUseCases() {
 
+    /** Declare and bind preview, capture and analysis use cases */
+    private fun setUpCamera() {
+
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
+        cameraProviderFuture.addListener(Runnable {
+
+            // CameraProvider
+            cameraProvider = cameraProviderFuture.get()
+
+            // Select lensFacing depending on the available cameras
+            lensFacing = when {
+                hasBackCamera() -> CameraSelector.LENS_FACING_BACK
+                hasFrontCamera() -> CameraSelector.LENS_FACING_FRONT
+                else -> throw IllegalStateException("Back and front camera are unavailable")
+            }
+
+            // Enable or disable switching between cameras
+            updateCameraSwitchButton()
+
+            bindCameraUseCases()
+
+        }, ContextCompat.getMainExecutor(requireContext()))
+    }
+
+    private fun bindCameraUseCases() {
         // Get screen metrics used to setup camera for full screen resolution
         val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
         Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
@@ -364,90 +396,83 @@ class CameraFragment : Fragment() {
 
         val rotation = viewFinder.display.rotation
 
-        // Bind the CameraProvider to the LifeCycleOwner
+        // CameraProvider
+        val cameraProvider = cameraProvider
+            ?: throw IllegalStateException("Camera initialization failed.")
+
         val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
-        cameraProviderFuture.addListener(Runnable {
 
-            // CameraProvider
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+        // Preview
+        preview = Preview.Builder()
+            .setTargetAspectRatio(screenAspectRatio)
+            // Set initial target rotation
+            .setTargetRotation(rotation)
+            .build()
 
-            // Preview
-            preview = Preview.Builder()
-                // We request aspect ratio but no resolution
-//                .setTargetAspectRatio(screenAspectRatio)
-//                .setTargetResolution(Size(480, 864))
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
-                // Set initial target rotation
-                .setTargetRotation(rotation)
-                .build().apply {
-                    // Default PreviewSurfaceProvider
-                    setSurfaceProvider(viewFinder.previewSurfaceProvider)
-                }
+        // ImageCapture
+        imageCapture = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            // We request aspect ratio but no resolution to match preview config, but letting
+            // CameraX optimize for whatever specific resolution best fits requested capture mode
+            //                .setTargetAspectRatio(screenAspectRatio)
+            .setTargetAspectRatio(screenAspectRatio)
+            // Set initial target rotation, we will have to call this again if rotation changes
+            // during the lifecycle of this use case
+            .setTargetRotation(rotation)
+            .build()
 
-            // ImageCapture
-            imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                // We request aspect ratio but no resolution to match preview config, but letting
-                // CameraX optimize for whatever specific resolution best fits requested capture mode
-//                .setTargetAspectRatio(screenAspectRatio)
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
-                // Set initial target rotation, we will have to call this again if rotation changes
-                // during the lifecycle of this use case
-                .setTargetRotation(rotation)
-                .build()
+        // ImageAnalysis
+        imageAnalysis = ImageAnalysis.Builder()
 
-            // ImageAnalysis
-            imageAnalysis = ImageAnalysis.Builder()
-
-                // We request aspect ratio but no resolution
-//                .setTargetAspectRatio(screenAspectRatio)
-//                .setTargetResolution(Size(600, 800))
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
-                // Set initial target rotation, we will have to call this again if rotation changes
-                // during the lifecycle of this use case
-                .setTargetRotation(rotation)
-                .setBackpressureStrategy(STRATEGY_KEEP_ONLY_LATEST)//.setImageQueueDepth(10)
-                .build()
-                // The analyzer can then be assigned to the instance
-                .also {
-                    //                    it.setAnalyzer(mainExecutor, LuminosityAnalyzer { luma ->
-//                        // Values returned from our analyzer are passed to the attached listener
-//                        // We log image analysis results here - you should do something useful instead!
-//                        Log.d(TAG, "Average luminosity: $luma")
-//                    })
-//                    it.setAnalyzer(executor, faceAnalyzer)
-                    it.setAnalyzer(executor, analyzer!!)
-                }
-
-            // Must unbind the use-cases before rebinding them.
-            cameraProvider.unbindAll()
-
-            try {
-                // A variable number of use-cases can be passed here -
-                // camera provides access to CameraControl & CameraInfo
-                camera = cameraProvider.bindToLifecycle(
-                    this,
-                    cameraSelector,
-                    preview,
-                    imageCapture,
-                    imageAnalysis
-                )
-
-                val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
-                val previewSize = preview?.getAttachedSurfaceResolution(cameraId)!!
-                Log.d(TAG, "previewSize: $previewSize")
-
-                if (isPortraitMode()) {
-                    graphicOverlay.setCameraInfo(previewSize.height, previewSize.width, lensFacing)
-                } else {
-                    graphicOverlay.setCameraInfo(previewSize.width, previewSize.height, lensFacing)
-                }
-            } catch (exc: Exception) {
-                Log.e(TAG, "Use case binding failed", exc)
+            // We request aspect ratio but no resolution
+            //                .setTargetAspectRatio(screenAspectRatio)
+            //                .setTargetResolution(Size(600, 800))
+            .setTargetAspectRatio(screenAspectRatio)
+            // Set initial target rotation, we will have to call this again if rotation changes
+            // during the lifecycle of this use case
+            .setTargetRotation(rotation)
+//            .setBackpressureStrategy(STRATEGY_KEEP_ONLY_LATEST)//.setImageQueueDepth(10)
+            .build()
+            // The analyzer can then be assigned to the instance
+            .also {
+                //                    it.setAnalyzer(mainExecutor, LuminosityAnalyzer { luma ->
+                //                        // Values returned from our analyzer are passed to the attached listener
+                //                        // We log image analysis results here - you should do something useful instead!
+                //                        Log.d(TAG, "Average luminosity: $luma")
+                //                    })
+                //                    it.setAnalyzer(executor, faceAnalyzer)
+                it.setAnalyzer(cameraExecutor, analyzer!!)
             }
 
-        }, mainExecutor)
+        // Must unbind the use-cases before rebinding them.
+        cameraProvider.unbindAll()
+
+        try {
+            // A variable number of use-cases can be passed here -
+            // camera provides access to CameraControl & CameraInfo
+            camera = cameraProvider.bindToLifecycle(
+                this,
+                cameraSelector,
+                preview,
+                imageCapture,
+                imageAnalysis
+            )
+
+            // Attach the viewfinder's surface provider to preview use case
+            preview?.setSurfaceProvider(viewFinder.createSurfaceProvider(camera?.cameraInfo))
+
+            val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
+            val previewSize = preview?.getAttachedSurfaceResolution()!!
+            Log.d(TAG, "previewSize: $previewSize")
+
+            if (isPortraitMode()) {
+                graphicOverlay.setCameraInfo(previewSize.height, previewSize.width, lensFacing)
+            } else {
+                graphicOverlay.setCameraInfo(previewSize.width, previewSize.height, lensFacing)
+            }
+        } catch (exc: Exception) {
+            Log.e(TAG, "Use case binding failed", exc)
+        }
     }
 
     /**
@@ -489,6 +514,15 @@ class CameraFragment : Fragment() {
         // Inflate a new view containing all UI for controlling the camera
         val controls = View.inflate(requireContext(), R.layout.camera_ui_container, container)
 
+        // In the background, load latest photo taken (if any) for gallery thumbnail
+        lifecycleScope.launch(Dispatchers.IO) {
+            outputDirectory.listFiles { file ->
+                EXTENSION_WHITELIST.contains(file.extension.toUpperCase(Locale.ROOT))
+            }?.max()?.let {
+                setGalleryThumbnail(it)
+            }
+        }
+
         // Listener for button used to capture photo
         controls.findViewById<ImageButton>(R.id.camera_capture_button).setOnClickListener {
 
@@ -509,7 +543,7 @@ class CameraFragment : Fragment() {
                 imageCapture.takePicture(
                     ImageCapture.OutputFileOptions.Builder(photoFile).setMetadata(
                         metadata
-                    ).build(), mainExecutor, imageSavedListener
+                    ).build(), cameraExecutor, imageSavedListener(photoFile)
                 )
 
                 // We can only change the foreground Drawable using API level 23+ API
@@ -526,55 +560,59 @@ class CameraFragment : Fragment() {
             }
         }
 
-        controls.findViewById<Spinner>(R.id.spinner)?.let {
-            ArrayAdapter.createFromResource(
-                this.requireContext(),
-                R.array.analyzers,
-                android.R.layout.simple_spinner_item
-            ).also { adapter ->
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                it.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onNothingSelected(parent: AdapterView<*>?) {
-
-                    }
-
-                    override fun onItemSelected(
-                        parent: AdapterView<*>?,
-                        view: View?,
-                        position: Int,
-                        id: Long
-                    ) {
-                        val menu = AnalyzerMenu.typeOf(position) ?: return
-                        analyzer = when (menu) {
-                            AnalyzerMenu.Face -> faceAnalyzer
-                            AnalyzerMenu.Text -> textAnalyzer
-                        }
-                        bindCameraUseCases()
-                    }
-                }
-                it.adapter = adapter
-
-            }
-        }
+//        controls.findViewById<Spinner>(R.id.spinner)?.let {
+//            ArrayAdapter.createFromResource(
+//                this.requireContext(),
+//                R.array.analyzers,
+//                android.R.layout.simple_spinner_item
+//            ).also { adapter ->
+//                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+//                it.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+//                    override fun onNothingSelected(parent: AdapterView<*>?) {
+//
+//                    }
+//
+//                    override fun onItemSelected(
+//                        parent: AdapterView<*>?,
+//                        view: View?,
+//                        position: Int,
+//                        id: Long
+//                    ) {
+//                        val menu = AnalyzerMenu.typeOf(position) ?: return
+//                        analyzer = when (menu) {
+//                            AnalyzerMenu.Face -> faceAnalyzer
+//                            AnalyzerMenu.Text -> textAnalyzer
+//                        }
+//                        setUpCamera()
+//                    }
+//                }
+//                it.adapter = adapter
+//
+//            }
+//        }
 
         // Listener for button used to switch cameras
-        controls.findViewById<ImageButton>(R.id.camera_switch_button).setOnClickListener {
-            lensFacing = if (CameraSelector.LENS_FACING_FRONT == lensFacing) {
-                CameraSelector.LENS_FACING_BACK
-            } else {
-                CameraSelector.LENS_FACING_FRONT
+        controls.findViewById<ImageButton>(R.id.camera_switch_button).let {
+            it.isEnabled = false
+            it.setOnClickListener {
+                lensFacing = if (CameraSelector.LENS_FACING_FRONT == lensFacing) {
+                    CameraSelector.LENS_FACING_BACK
+                } else {
+                    CameraSelector.LENS_FACING_FRONT
+                }
+                // Re-bind use cases to update selected camera
+                bindCameraUseCases()
             }
-            // Bind use cases
-            bindCameraUseCases()
-        }
 
-        // Listener for button used to view the most recent photo
-        controls.findViewById<ImageButton>(R.id.photo_view_button).setOnClickListener {
-            // Only navigate when the gallery has photos
-            if (true == outputDirectory.listFiles()?.isNotEmpty()) {
-                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
-                    CameraFragmentDirections.actionCameraToGallery(outputDirectory.absolutePath)
-                )
+            // Listener for button used to view the most recent photo
+            controls.findViewById<ImageButton>(R.id.photo_view_button).setOnClickListener {
+                // Only navigate when the gallery has photos
+                if (true == outputDirectory.listFiles()?.isNotEmpty()) {
+                    Navigation.findNavController(requireActivity(), R.id.fragment_container)
+                        .navigate(
+                            CameraFragmentDirections.actionCameraToGallery(outputDirectory.absolutePath)
+                        )
+                }
             }
         }
     }
@@ -659,6 +697,26 @@ class CameraFragment : Fragment() {
                 listeners.forEach { it(luma) }
             }
         }
+    }
+
+    /** Enabled or disabled a button to switch cameras depending on the available cameras */
+    private fun updateCameraSwitchButton() {
+        val switchCamerasButton = container.findViewById<ImageButton>(R.id.camera_switch_button)
+        try {
+            switchCamerasButton.isEnabled = hasBackCamera() && hasFrontCamera()
+        } catch (exception: CameraInfoUnavailableException) {
+            switchCamerasButton.isEnabled = false
+        }
+    }
+
+    /** Returns true if the device has an available back camera. False otherwise */
+    private fun hasBackCamera(): Boolean {
+        return cameraProvider?.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) ?: false
+    }
+
+    /** Returns true if the device has an available front camera. False otherwise */
+    private fun hasFrontCamera(): Boolean {
+        return cameraProvider?.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) ?: false
     }
 
     companion object {

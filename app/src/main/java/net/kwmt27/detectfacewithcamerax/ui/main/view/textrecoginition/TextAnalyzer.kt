@@ -9,9 +9,6 @@ import com.google.firebase.ml.vision.FirebaseVision
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.google.firebase.ml.vision.text.FirebaseVisionText
 import com.google.firebase.ml.vision.text.FirebaseVisionTextRecognizer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
 import kotlin.coroutines.resume
@@ -25,7 +22,8 @@ data class TextAnalyzerResult(
 
 class TextAnalyzer : ImageAnalysis.Analyzer {
 
-    private val detector: FirebaseVisionTextRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
+    private val detector: FirebaseVisionTextRecognizer =
+        FirebaseVision.getInstance().onDeviceTextRecognizer
 
     val liveData = MutableLiveData<TextAnalyzerResult>()
 
@@ -34,12 +32,17 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
         val rotation = FaceAnalyzer.translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
         val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
-        imageProxy.close()
-        val scope = CoroutineScope(Dispatchers.Default)
-        scope.launch {
-            val visionText = detectText(visionImage)
-            liveData.postValue(TextAnalyzerResult(visionText))
+        detectTextNormalListener(visionImage) {
+            liveData.postValue(it)
         }
+
+
+//        imageProxy.close()
+//        val scope = CoroutineScope(Dispatchers.Default)
+//        scope.launch {
+//            val visionText = detectText(visionImage)
+//            liveData.postValue(TextAnalyzerResult(visionText))
+//        }
     }
 
     private suspend fun detectText(image: FirebaseVisionImage): FirebaseVisionText =
@@ -71,5 +74,15 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
             }
         }
         graphicOverlay.postInvalidate()
+    }
+
+    private fun detectTextNormalListener(
+        image: FirebaseVisionImage,
+        callback: (TextAnalyzerResult) -> Unit
+    ) {
+        detector.processImage(image)
+            .addOnSuccessListener { results ->
+                callback(TextAnalyzerResult(results))
+            }
     }
 }

@@ -21,17 +21,17 @@
     android:layout_height="match_parent"
     android:layoutDirection="ltr">
 
-    <Spinner
-        android:id="@+id/spinner"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:layout_constraintBottom_toTopOf="@id/camera_switch_button"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginStart="@dimen/margin_small"
-        android:layout_marginBottom="@dimen/margin_small"
-        android:entries="@array/analyzers"
-        android:background="@color/colorAccent"
-        />
+<!--    <Spinner-->
+<!--        android:id="@+id/spinner"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        app:layout_constraintBottom_toTopOf="@id/camera_switch_button"-->
+<!--        app:layout_constraintStart_toStartOf="parent"-->
+<!--        android:layout_marginStart="@dimen/margin_small"-->
+<!--        android:layout_marginBottom="@dimen/margin_small"-->
+<!--        android:entries="@array/analyzers"-->
+<!--        android:background="@color/colorAccent"-->
+<!--        />-->
 
     <!-- Camera control and gallery buttons -->
     <ImageButton
