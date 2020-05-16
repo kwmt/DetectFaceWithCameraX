@@ -30,8 +30,7 @@ class FaceGraphic(
     overlay: GraphicOverlay,
     private val firebaseVisionFace: FirebaseVisionFace,
     private val facing: Int,
-    private val overlayBitmap: Bitmap?,
-    preview: PreviewView
+    private val overlayBitmap: Bitmap?
 ) : Graphic(overlay) {
     private val facePositionPaint: Paint
     private val idPaint: Paint

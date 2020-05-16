@@ -68,7 +68,10 @@ import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.Face
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceDetector
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceGraphic
 import net.kwmt27.detectfacewithcamerax.ui.main.view.textrecoginition.TextAnalyzer
 import java.io.File
 import java.nio.ByteBuffer
@@ -107,9 +110,9 @@ class CameraFragment : Fragment() {
     private var imageAnalysis: ImageAnalysis? = null
     private var camera: Camera? = null
 
-    private val faceAnalyzer = FaceAnalyzer()
-    private val textAnalyzer = TextAnalyzer()
-    private var analyzer: ImageAnalysis.Analyzer = faceAnalyzer //textAnalyzer
+    private var faceAnalyzer: FaceAnalyzer? = null
+    private var textAnalyzer: TextAnalyzer? = null
+    private var analyzer: ImageAnalysis.Analyzer? = null
     private lateinit var graphicOverlay: GraphicOverlay
     private lateinit var executor: Executor
 
@@ -271,14 +274,55 @@ class CameraFragment : Fragment() {
             }
         }
 
-        faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
-            faceAnalyzer.updateFaceUI(graphicOverlay, face, lensFacing, viewFinder)
-        })
+        val faceDetector = FaceDetector()
+        faceAnalyzer = FaceAnalyzer {
+            //            lifecycleScope.launch(Dispatchers.IO) {
+//                val visionFaces= faceDetector.detect(it)
+//                updateFaceUI(graphicOverlay, Face(visionFaces), lensFacing)
+//            }
 
-        textAnalyzer.liveData.observe(viewLifecycleOwner, Observer { result ->
-            textAnalyzer.updateTextUI(graphicOverlay, result)
-        })
+            faceDetector.detectRaw(it) { results ->
+                updateFaceUI(graphicOverlay, Face(results), lensFacing)
+            }
+        }
+//        textAnalyzer = TextAnalyzer()
+        analyzer = faceAnalyzer
+
+//        faceAnalyzer?.liveDataFaces?.observe(viewLifecycleOwner, Observer { face ->
+//
+//        })
+//
+//        textAnalyzer?.liveData?.observe(viewLifecycleOwner, Observer { result ->
+//            textAnalyzer?.updateTextUI(graphicOverlay, result)
+//        })
     }
+
+    fun updateFaceUI(
+        graphicOverlay: GraphicOverlay,
+        face: Face,
+        lensFacing: Int
+    ) {
+        Log.d("CameraFragment", "update")
+        val visionFaces = face.visionFaces
+        Log.d("CameraFragment", "faces.isNotEmpty(): ${visionFaces.size}")
+        if (visionFaces.isEmpty()) return
+
+        graphicOverlay.post {
+            graphicOverlay.clear()
+
+            for (f in visionFaces) {
+                Log.d(
+                    "CameraFragment",
+                    "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}"
+                )
+                val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null)
+                graphicOverlay.add(faceGraphic)
+            }
+            graphicOverlay.postInvalidate()
+        }
+
+    }
+
 
     private fun isPortraitMode(): Boolean {
         val orientation = requireContext().resources.configuration.orientation
@@ -372,7 +416,7 @@ class CameraFragment : Fragment() {
 //                        Log.d(TAG, "Average luminosity: $luma")
 //                    })
 //                    it.setAnalyzer(executor, faceAnalyzer)
-                    it.setAnalyzer(executor, analyzer)
+                    it.setAnalyzer(executor, analyzer!!)
                 }
 
             // Must unbind the use-cases before rebinding them.
@@ -382,7 +426,7 @@ class CameraFragment : Fragment() {
                 // A variable number of use-cases can be passed here -
                 // camera provides access to CameraControl & CameraInfo
                 camera = cameraProvider.bindToLifecycle(
-                    this as LifecycleOwner,
+                    this,
                     cameraSelector,
                     preview,
                     imageCapture,
