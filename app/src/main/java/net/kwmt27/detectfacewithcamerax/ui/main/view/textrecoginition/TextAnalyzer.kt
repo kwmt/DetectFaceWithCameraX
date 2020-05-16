@@ -27,13 +27,23 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
 
     val liveData = MutableLiveData<TextAnalyzerResult>()
 
+    private var isDetecting = false
+
     override fun analyze(imageProxy: ImageProxy) {
+        if(isDetecting) {
+            imageProxy.close()
+            return
+        }
+        isDetecting = true
         val image = imageProxy.image!!
         val rotation = FaceAnalyzer.translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
         val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
+        imageProxy.close()
+
         detectTextNormalListener(visionImage) {
             liveData.postValue(it)
+            isDetecting = false
         }
 
 

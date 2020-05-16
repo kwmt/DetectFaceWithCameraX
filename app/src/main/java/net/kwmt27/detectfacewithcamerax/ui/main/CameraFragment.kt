@@ -110,7 +110,7 @@ class CameraFragment : Fragment() {
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
-
+    private lateinit var graphicOverlay: GraphicOverlay
     private val displayManager by lazy {
         requireContext().getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
     }
@@ -201,6 +201,8 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         container = view as ConstraintLayout
         viewFinder = container.findViewById(R.id.view_finder)
+
+        graphicOverlay = container.findViewById(R.id.graphicOverlay)
 
         // Initialize our background executor
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -320,7 +322,11 @@ class CameraFragment : Fragment() {
             .build()
             // The analyzer can then be assigned to the instance
             .also {
-                it.setAnalyzer(cameraExecutor, TextAnalyzer())
+                it.setAnalyzer(cameraExecutor, TextAnalyzer().apply {
+                    this.liveData.observe(viewLifecycleOwner, Observer { result ->
+                        this.updateTextUI(graphicOverlay, result)
+                    })
+                })
 //                it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
 //                    // Values returned from our analyzer are passed to the attached listener
 //                    // We log image analysis results here - you should do something useful
