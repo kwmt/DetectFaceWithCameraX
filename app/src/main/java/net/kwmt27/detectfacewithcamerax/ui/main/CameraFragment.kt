@@ -141,8 +141,8 @@ class CameraFragment : Fragment() {
         override fun onDisplayChanged(displayId: Int) = view?.let { view ->
             if (displayId == this@CameraFragment.displayId) {
                 Log.d(TAG, "Rotation changed: ${view.display.rotation}")
-                imageCapture?.setTargetRotation(view.display.rotation)
-                imageAnalysis?.setTargetRotation(view.display.rotation)
+                imageCapture?.targetRotation = view.display.rotation
+                imageAnalysis?.targetRotation = view.display.rotation
             }
         } ?: Unit
     }
@@ -399,6 +399,7 @@ class CameraFragment : Fragment() {
 
             // ImageAnalysis
             imageAnalysis = ImageAnalysis.Builder()
+
                 // We request aspect ratio but no resolution
 //                .setTargetAspectRatio(screenAspectRatio)
 //                .setTargetResolution(Size(600, 800))
