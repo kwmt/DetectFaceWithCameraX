@@ -16,8 +16,10 @@ package net.kwmt27.detectfacewithcamerax.ui.main.view;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
+import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.Size;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -192,6 +194,7 @@ public class GraphicOverlay extends View {
             }
             Log.d("MIDemoApp", "previewWidth:"+previewWidth+",previewHeight:"+previewHeight+",getWidth() :" + getWidth() + ",getHeight(): "+ getHeight() +",widthScaleFactor:" + widthScaleFactor + ", heightScaleFactor:" + heightScaleFactor);
             for (Graphic graphic : graphics) {
+
                 graphic.draw(canvas);
             }
 

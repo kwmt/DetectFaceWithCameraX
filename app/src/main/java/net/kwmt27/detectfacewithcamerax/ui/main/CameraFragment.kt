@@ -37,13 +37,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.ImageButton
-import android.widget.Spinner
-import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.*
-import androidx.camera.core.ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
 import androidx.camera.core.ImageCapture.Metadata
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -68,20 +63,13 @@ import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
-import net.kwmt27.detectfacewithcamerax.ui.main.view.ImageProcessor
-import net.kwmt27.detectfacewithcamerax.ui.main.view.face.Face
-import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
-import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceDetector
-import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceGraphic
 import net.kwmt27.detectfacewithcamerax.ui.main.view.textrecoginition.TextAnalyzer
 import java.io.File
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayList
 import kotlin.math.abs
 import kotlin.math.max
@@ -266,6 +254,7 @@ class CameraFragment : Fragment() {
                 else -> throw IllegalStateException("Back and front camera are unavailable")
             }
 
+            Log.d(TAG, "lensFacing:$lensFacing")
             // Enable or disable switching between cameras
             updateCameraSwitchButton()
 
@@ -296,17 +285,20 @@ class CameraFragment : Fragment() {
         // Preview
         preview = Preview.Builder()
             // We request aspect ratio but no resolution
-            .setTargetAspectRatio(screenAspectRatio)
+            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
+//            .setTargetAspectRatio(screenAspectRatio)
             // Set initial target rotation
             .setTargetRotation(rotation)
             .build()
 
+        Log.d(TAG, "viewFinder: ${viewFinder.width}, ${viewFinder.height}")
         // ImageCapture
         imageCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             // We request aspect ratio but no resolution to match preview config, but letting
             // CameraX optimize for whatever specific resolution best fits our use cases
-            .setTargetAspectRatio(screenAspectRatio)
+//            .setTargetAspectRatio(screenAspectRatio)
+            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
             // Set initial target rotation, we will have to call this again if rotation changes
             // during the lifecycle of this use case
             .setTargetRotation(rotation)
@@ -315,14 +307,15 @@ class CameraFragment : Fragment() {
         // ImageAnalysis
         imageAnalyzer = ImageAnalysis.Builder()
             // We request aspect ratio but no resolution
-            .setTargetAspectRatio(screenAspectRatio)
+            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
+//            .setTargetAspectRatio(screenAspectRatio)
             // Set initial target rotation, we will have to call this again if rotation changes
             // during the lifecycle of this use case
             .setTargetRotation(rotation)
             .build()
             // The analyzer can then be assigned to the instance
             .also {
-                it.setAnalyzer(cameraExecutor, TextAnalyzer().apply {
+                it.setAnalyzer(cameraExecutor, TextAnalyzer(lensFacing).apply {
                     this.liveData.observe(viewLifecycleOwner, Observer { result ->
                         this.updateTextUI(graphicOverlay, result)
                     })
@@ -347,6 +340,7 @@ class CameraFragment : Fragment() {
 
             // Attach the viewfinder's surface provider to preview use case
             preview?.setSurfaceProvider(viewFinder.createSurfaceProvider(camera?.cameraInfo))
+
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
         }
@@ -373,6 +367,15 @@ class CameraFragment : Fragment() {
 
     /** Method used to re-draw the camera UI controls, called every time configuration changes. */
     private fun updateCameraUi() {
+        Log.d(TAG, "viewFinder: ${viewFinder.width} x ${viewFinder.height}")
+//        if(isPortraitMode()) {
+////
+////            graphicOverlay.setCameraInfo(1080, 1920, lensFacing)
+//            graphicOverlay.setCameraInfo(viewFinder.width, viewFinder.height, lensFacing)
+//        } else {
+//            graphicOverlay.setCameraInfo(viewFinder.height, viewFinder.width, lensFacing)
+//        }
+
 
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
@@ -603,6 +606,22 @@ class CameraFragment : Fragment() {
 
             image.close()
         }
+    }
+
+
+    private fun isPortraitMode(): Boolean {
+        val orientation = requireContext().resources.configuration.orientation
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            return false
+        }
+        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+            return true
+        }
+        Log.d(
+            TAG,
+            "isPortraitMode returning false by default"
+        )
+        return false
     }
 
     companion object {
