@@ -38,8 +38,19 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
 import android.widget.ImageButton
-import androidx.camera.core.*
+import androidx.camera.camera2.Camera2Config
+import androidx.camera.core.AspectRatio
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraInfoUnavailableException
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCapture.Metadata
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.core.VideoCapture
+import androidx.camera.core.impl.VideoCaptureConfig
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -96,6 +107,7 @@ class CameraFragment : Fragment() {
     private var preview: Preview? = null
     private var imageCapture: ImageCapture? = null
     private var imageAnalyzer: ImageAnalysis? = null
+    private var videoCapture: VideoCapture? = null
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private lateinit var graphicOverlay: GraphicOverlay
@@ -282,6 +294,8 @@ class CameraFragment : Fragment() {
         // CameraSelector
         val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
+
+
         // Preview
         preview = Preview.Builder()
             // We request aspect ratio but no resolution
@@ -320,13 +334,24 @@ class CameraFragment : Fragment() {
                         this.updateTextUI(graphicOverlay, result)
                     })
                 })
-//                it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
-//                    // Values returned from our analyzer are passed to the attached listener
-//                    // We log image analysis results here - you should do something useful
-//                    // instead!
-//                    Log.d(TAG, "Average luminosity: $luma")
-//                })
+/*
+it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
+// Values returned from our analyzer are passed to the attached listener
+// We log image analysis results here - you should do something useful
+// instead!
+Log.d(TAG, "Average luminosity: $luma")
+})
+*/
             }
+
+        Camera2Config.defaultConfig()
+
+        videoCapture = VideoCaptureConfig.Builder()
+            .setTargetResolution(Size(viewFinder.width, viewFinder.height))
+            .setTargetRotation(rotation)
+            .setVideoFrameRate(24) //
+            .build()
+
 
         // Must unbind the use-cases before rebinding them
         cameraProvider.unbindAll()
@@ -335,7 +360,9 @@ class CameraFragment : Fragment() {
             // A variable number of use-cases can be passed here -
             // camera provides access to CameraControl & CameraInfo
             camera = cameraProvider.bindToLifecycle(
-                this, cameraSelector, preview, imageCapture, imageAnalyzer
+                viewLifecycleOwner, cameraSelector,
+                preview, imageCapture, imageAnalyzer
+//                preview , videoCapture // Video撮影用。まだImageAnalysisはサポートしていない
             )
 
             // Attach the viewfinder's surface provider to preview use case
