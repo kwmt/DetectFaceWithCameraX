@@ -24,8 +24,9 @@ data class Face(
     val visionFaces: List<FirebaseVisionFace>
 )
 
-class FaceAnalyzer : ImageAnalysis.Analyzer {
+typealias FaceListener = (visionImage: FirebaseVisionImage) -> Unit
 
+class FaceDetector {
     // Real-time contour detection of multiple faces
     private val options by lazy {
         FirebaseVisionFaceDetectorOptions.Builder()
@@ -35,19 +36,13 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
     }
     private val detector by lazy { FirebaseVision.getInstance().getVisionFaceDetector(options) }
 
-    val liveDataFaces = MutableLiveData<Face>()
-    override fun analyze(imageProxy: ImageProxy) {
-        Log.d("FaceAnalyzer", "analyze")
-        val image = imageProxy.image!!
-        val rotation = translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
-
-        val scope = CoroutineScope(Dispatchers.Default)
-        scope.launch {
-            val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
-            imageProxy.close()
-            val visionFaces = detect(visionImage)
-            liveDataFaces.postValue(Face(visionFaces))
-        }
+    fun detectRaw(image: FirebaseVisionImage, listener: (List<FirebaseVisionFace>) -> Unit) {
+        detector.detectInImage(image)
+            .addOnSuccessListener {
+                listener(it)
+            }.addOnFailureListener {
+                Log.e("tag", "", it)
+            }
     }
 
     suspend fun detect(image: FirebaseVisionImage): List<FirebaseVisionFace> =
@@ -60,22 +55,28 @@ class FaceAnalyzer : ImageAnalysis.Analyzer {
                     continuation.resumeWithException(e)
                 }
         }
+}
 
-    fun updateFaceUI(graphicOverlay: GraphicOverlay, face: Face, lensFacing: Int, viewFinder: PreviewView) {
-        Log.d("CameraFragment", "update")
-        val visionFaces = face.visionFaces
-        Log.d("CameraFragment", "faces.isNotEmpty(): ${visionFaces.size}")
-        if (visionFaces.isEmpty()) return
+class FaceAnalyzer(private val listener: FaceListener) : ImageAnalysis.Analyzer {
 
-        graphicOverlay.clear()
 
-        for (f in visionFaces) {
-            Log.d("CameraFragment", "f.boundingBox: ${f.boundingBox}, graphicOverlay: ${graphicOverlay.width}, ${graphicOverlay.height}")
-            val faceGraphic = FaceGraphic(graphicOverlay, f, lensFacing, null, viewFinder)
-            graphicOverlay.add(faceGraphic)
+    val liveDataFaces = MutableLiveData<Face>()
+    override fun analyze(imageProxy: ImageProxy) {
+        Log.d("FaceAnalyzer", "analyze")
+        val image = imageProxy.image!!
+        val rotation = translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
+
+        val scope = CoroutineScope(Dispatchers.Default)
+        scope.launch {
+            val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
+            imageProxy.close()
+            listener(visionImage)
+
+//            val visionFaces = detect(visionImage)
+//            liveDataFaces.postValue(Face(visionFaces))
         }
-        graphicOverlay.postInvalidate()
     }
+
 
     companion object {
         fun translateFirebaseRotation(rotationDegrees: Int): Int {

@@ -24,7 +24,6 @@
         android:id="@+id/view_finder"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:implementationMode="textureView"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

@@ -26,6 +26,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.hardware.display.DisplayManager
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -51,7 +52,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
 import androidx.core.view.setPadding
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -68,13 +68,18 @@ import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_FAST_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.ANIMATION_SLOW_MILLIS
 import net.kwmt27.detectfacewithcamerax.ui.main.utils.simulateClick
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
+import net.kwmt27.detectfacewithcamerax.ui.main.view.ImageProcessor
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.Face
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceDetector
+import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceGraphic
 import net.kwmt27.detectfacewithcamerax.ui.main.view.textrecoginition.TextAnalyzer
 import java.io.File
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayList
@@ -97,21 +102,21 @@ class CameraFragment : Fragment() {
     private lateinit var viewFinder: PreviewView
     private lateinit var outputDirectory: File
     private lateinit var broadcastManager: LocalBroadcastManager
-    private lateinit var displayManager: DisplayManager
-    private lateinit var mainExecutor: Executor
 
     private var displayId: Int = -1
     private var lensFacing: Int = CameraSelector.LENS_FACING_BACK
     private var preview: Preview? = null
     private var imageCapture: ImageCapture? = null
-    private var imageAnalysis: ImageAnalysis? = null
+    private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
-
-    private val faceAnalyzer = FaceAnalyzer()
-    private val textAnalyzer = TextAnalyzer()
-    private var analyzer: ImageAnalysis.Analyzer = faceAnalyzer //textAnalyzer
+    private var cameraProvider: ProcessCameraProvider? = null
     private lateinit var graphicOverlay: GraphicOverlay
-    private lateinit var executor: Executor
+    private val displayManager by lazy {
+        requireContext().getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    }
+
+    /** Blocking camera operations are performed using this executor */
+    private lateinit var cameraExecutor: ExecutorService
 
     /** Volume down button receiver used to trigger shutter */
     private val volumeDownReceiver = object : BroadcastReceiver() {
@@ -138,16 +143,10 @@ class CameraFragment : Fragment() {
         override fun onDisplayChanged(displayId: Int) = view?.let { view ->
             if (displayId == this@CameraFragment.displayId) {
                 Log.d(TAG, "Rotation changed: ${view.display.rotation}")
-                imageCapture?.setTargetRotation(view.display.rotation)
-                imageAnalysis?.setTargetRotation(view.display.rotation)
+                imageCapture?.targetRotation = view.display.rotation
+                imageAnalyzer?.targetRotation = view.display.rotation
             }
         } ?: Unit
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        mainExecutor = ContextCompat.getMainExecutor(requireContext())
-        executor = Executors.newSingleThreadExecutor()
     }
 
     override fun onResume() {
@@ -163,6 +162,10 @@ class CameraFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+
+        // Shut down our background executor
+        cameraExecutor.shutdown()
+
         // Unregister the broadcast receivers and listeners
         broadcastManager.unregisterReceiver(volumeDownReceiver)
         displayManager.unregisterDisplayListener(displayListener)
@@ -175,7 +178,7 @@ class CameraFragment : Fragment() {
     ): View? =
         inflater.inflate(R.layout.fragment_camera, container, false)
 
-    private fun setGalleryThumbnail(file: File) {
+    private fun setGalleryThumbnail(uri: Uri) {
         // Reference of the view that holds the gallery thumbnail
         val thumbnail = container.findViewById<ImageButton>(R.id.photo_view_button)
 
@@ -187,45 +190,9 @@ class CameraFragment : Fragment() {
 
             // Load thumbnail into circular button using Glide
             Glide.with(thumbnail)
-                .load(file)
+                .load(uri)
                 .apply(RequestOptions.circleCropTransform())
                 .into(thumbnail)
-        }
-    }
-
-    /** Define callback that will be triggered after a photo has been taken and saved to disk */
-    private val imageSavedListener = object : ImageCapture.OnImageSavedCallback {
-        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-
-            val savedUri = outputFileResults.savedUri
-            Log.d(TAG, "Photo capture succeeded: $savedUri")
-
-            val file = outputFileResults.savedUri?.toFile() ?: return
-            // We can only change the foreground Drawable using API level 23+ API
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                // Update the gallery thumbnail with latest picture taken
-                setGalleryThumbnail(file)
-            }
-
-            // Implicit broadcasts will be ignored for devices running API level >= 24
-            // so if you only target API level 24+ you can remove this statement
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-                requireActivity().sendBroadcast(
-                    Intent(android.hardware.Camera.ACTION_NEW_PICTURE, outputFileResults.savedUri)
-                )
-            }
-
-            // If the folder selected is an external media directory, this is unnecessary
-            // but otherwise other apps will not be able to access our images unless we
-            // scan them using [MediaScannerConnection]
-            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
-            MediaScannerConnection.scanFile(
-                context, arrayOf(savedUri.toString()), arrayOf(mimeType), null
-            )
-        }
-
-        override fun onError(exception: ImageCaptureException) {
-            Log.e(TAG, "Photo capture failed ", exception)
         }
     }
 
@@ -234,16 +201,19 @@ class CameraFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         container = view as ConstraintLayout
         viewFinder = container.findViewById(R.id.view_finder)
-        broadcastManager = LocalBroadcastManager.getInstance(view.context)
+
         graphicOverlay = container.findViewById(R.id.graphicOverlay)
+
+        // Initialize our background executor
+        cameraExecutor = Executors.newSingleThreadExecutor()
+
+        broadcastManager = LocalBroadcastManager.getInstance(view.context)
 
         // Set up the intent filter that will receive events from our main activity
         val filter = IntentFilter().apply { addAction(KEY_EVENT_ACTION) }
         broadcastManager.registerReceiver(volumeDownReceiver, filter)
 
-        // Every time the orientation of device changes, recompute layout
-        displayManager = viewFinder.context
-            .getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        // Every time the orientation of device changes, update rotation for use cases
         displayManager.registerDisplayListener(displayListener, null)
 
         // Determine the output directory
@@ -258,41 +228,9 @@ class CameraFragment : Fragment() {
             // Build UI controls
             updateCameraUi()
 
-            // Bind use cases
-            bindCameraUseCases()
-
-            // In the background, load latest photo taken (if any) for gallery thumbnail
-            lifecycleScope.launch(Dispatchers.IO) {
-                outputDirectory.listFiles { file ->
-                    EXTENSION_WHITELIST.contains(file.extension.toUpperCase(Locale.ROOT))
-                }?.max()?.let {
-                    setGalleryThumbnail(it)
-                }
-            }
+            // Set up the camera and its use cases
+            setUpCamera()
         }
-
-        faceAnalyzer.liveDataFaces.observe(viewLifecycleOwner, Observer { face ->
-            faceAnalyzer.updateFaceUI(graphicOverlay, face, lensFacing, viewFinder)
-        })
-
-        textAnalyzer.liveData.observe(viewLifecycleOwner, Observer { result ->
-            textAnalyzer.updateTextUI(graphicOverlay, result)
-        })
-    }
-
-    private fun isPortraitMode(): Boolean {
-        val orientation = requireContext().resources.configuration.orientation
-        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            return false
-        }
-        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-            return true
-        }
-        Log.d(
-            TAG,
-            "isPortraitMode returning false by default"
-        )
-        return false
     }
 
     /**
@@ -305,104 +243,113 @@ class CameraFragment : Fragment() {
      */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+
+        // Redraw the camera UI controls
         updateCameraUi()
+
+        // Enable or disable switching between cameras
+        updateCameraSwitchButton()
     }
 
-    val threadPerTaskExecutor = ThreadPerTaskExecutor()
+    /** Initialize CameraX, and prepare to bind the camera use cases  */
+    private fun setUpCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
+        cameraProviderFuture.addListener(Runnable {
+
+            // CameraProvider
+            cameraProvider = cameraProviderFuture.get()
+
+            // Select lensFacing depending on the available cameras
+            lensFacing = when {
+                hasBackCamera() -> CameraSelector.LENS_FACING_BACK
+                hasFrontCamera() -> CameraSelector.LENS_FACING_FRONT
+                else -> throw IllegalStateException("Back and front camera are unavailable")
+            }
+
+            // Enable or disable switching between cameras
+            updateCameraSwitchButton()
+
+            // Build and bind the camera use cases
+            bindCameraUseCases()
+        }, ContextCompat.getMainExecutor(requireContext()))
+    }
+
     /** Declare and bind preview, capture and analysis use cases */
     private fun bindCameraUseCases() {
 
         // Get screen metrics used to setup camera for full screen resolution
         val metrics = DisplayMetrics().also { viewFinder.display.getRealMetrics(it) }
         Log.d(TAG, "Screen metrics: ${metrics.widthPixels} x ${metrics.heightPixels}")
+
         val screenAspectRatio = aspectRatio(metrics.widthPixels, metrics.heightPixels)
         Log.d(TAG, "Preview aspect ratio: $screenAspectRatio")
 
         val rotation = viewFinder.display.rotation
 
-        // Bind the CameraProvider to the LifeCycleOwner
+        // CameraProvider
+        val cameraProvider = cameraProvider
+            ?: throw IllegalStateException("Camera initialization failed.")
+
+        // CameraSelector
         val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
-        cameraProviderFuture.addListener(Runnable {
 
-            // CameraProvider
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+        // Preview
+        preview = Preview.Builder()
+            // We request aspect ratio but no resolution
+            .setTargetAspectRatio(screenAspectRatio)
+            // Set initial target rotation
+            .setTargetRotation(rotation)
+            .build()
 
-            // Preview
-            preview = Preview.Builder()
-                // We request aspect ratio but no resolution
-//                .setTargetAspectRatio(screenAspectRatio)
-//                .setTargetResolution(Size(480, 864))
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
-                // Set initial target rotation
-                .setTargetRotation(rotation)
-                .build().apply {
-                    // Default PreviewSurfaceProvider
-                    setSurfaceProvider(viewFinder.previewSurfaceProvider)
-                }
+        // ImageCapture
+        imageCapture = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            // We request aspect ratio but no resolution to match preview config, but letting
+            // CameraX optimize for whatever specific resolution best fits our use cases
+            .setTargetAspectRatio(screenAspectRatio)
+            // Set initial target rotation, we will have to call this again if rotation changes
+            // during the lifecycle of this use case
+            .setTargetRotation(rotation)
+            .build()
 
-            // ImageCapture
-            imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                // We request aspect ratio but no resolution to match preview config, but letting
-                // CameraX optimize for whatever specific resolution best fits requested capture mode
-//                .setTargetAspectRatio(screenAspectRatio)
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
-                // Set initial target rotation, we will have to call this again if rotation changes
-                // during the lifecycle of this use case
-                .setTargetRotation(rotation)
-                .build()
-
-            // ImageAnalysis
-            imageAnalysis = ImageAnalysis.Builder()
-                // We request aspect ratio but no resolution
-//                .setTargetAspectRatio(screenAspectRatio)
-//                .setTargetResolution(Size(600, 800))
-                .setTargetResolution(Size(viewFinder.width, viewFinder.height))
-                // Set initial target rotation, we will have to call this again if rotation changes
-                // during the lifecycle of this use case
-                .setTargetRotation(rotation)
-                .setBackpressureStrategy(STRATEGY_KEEP_ONLY_LATEST)//.setImageQueueDepth(10)
-                .build()
-                // The analyzer can then be assigned to the instance
-                .also {
-                    //                    it.setAnalyzer(mainExecutor, LuminosityAnalyzer { luma ->
-//                        // Values returned from our analyzer are passed to the attached listener
-//                        // We log image analysis results here - you should do something useful instead!
-//                        Log.d(TAG, "Average luminosity: $luma")
-//                    })
-//                    it.setAnalyzer(executor, faceAnalyzer)
-                    it.setAnalyzer(executor, analyzer)
-                }
-
-            // Must unbind the use-cases before rebinding them.
-            cameraProvider.unbindAll()
-
-            try {
-                // A variable number of use-cases can be passed here -
-                // camera provides access to CameraControl & CameraInfo
-                camera = cameraProvider.bindToLifecycle(
-                    this as LifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    imageCapture,
-                    imageAnalysis
-                )
-
-                val cameraId = Camera2CameraInfo.extractCameraId(camera!!.cameraInfo)
-                val previewSize = preview?.getAttachedSurfaceResolution(cameraId)!!
-                Log.d(TAG, "previewSize: $previewSize")
-
-                if (isPortraitMode()) {
-                    graphicOverlay.setCameraInfo(previewSize.height, previewSize.width, lensFacing)
-                } else {
-                    graphicOverlay.setCameraInfo(previewSize.width, previewSize.height, lensFacing)
-                }
-            } catch (exc: Exception) {
-                Log.e(TAG, "Use case binding failed", exc)
+        // ImageAnalysis
+        imageAnalyzer = ImageAnalysis.Builder()
+            // We request aspect ratio but no resolution
+            .setTargetAspectRatio(screenAspectRatio)
+            // Set initial target rotation, we will have to call this again if rotation changes
+            // during the lifecycle of this use case
+            .setTargetRotation(rotation)
+            .build()
+            // The analyzer can then be assigned to the instance
+            .also {
+                it.setAnalyzer(cameraExecutor, TextAnalyzer().apply {
+                    this.liveData.observe(viewLifecycleOwner, Observer { result ->
+                        this.updateTextUI(graphicOverlay, result)
+                    })
+                })
+//                it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
+//                    // Values returned from our analyzer are passed to the attached listener
+//                    // We log image analysis results here - you should do something useful
+//                    // instead!
+//                    Log.d(TAG, "Average luminosity: $luma")
+//                })
             }
 
-        }, mainExecutor)
+        // Must unbind the use-cases before rebinding them
+        cameraProvider.unbindAll()
+
+        try {
+            // A variable number of use-cases can be passed here -
+            // camera provides access to CameraControl & CameraInfo
+            camera = cameraProvider.bindToLifecycle(
+                this, cameraSelector, preview, imageCapture, imageAnalyzer
+            )
+
+            // Attach the viewfinder's surface provider to preview use case
+            preview?.setSurfaceProvider(viewFinder.createSurfaceProvider(camera?.cameraInfo))
+        } catch (exc: Exception) {
+            Log.e(TAG, "Use case binding failed", exc)
+        }
     }
 
     /**
@@ -424,18 +371,9 @@ class CameraFragment : Fragment() {
         return AspectRatio.RATIO_16_9
     }
 
-    enum class AnalyzerMenu {
-        Face, Text;
-
-        companion object {
-            fun typeOf(value: Int): AnalyzerMenu? {
-                return values().firstOrNull { it.ordinal == value }
-            }
-        }
-    }
-
     /** Method used to re-draw the camera UI controls, called every time configuration changes. */
     private fun updateCameraUi() {
+
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
             container.removeView(it)
@@ -443,6 +381,15 @@ class CameraFragment : Fragment() {
 
         // Inflate a new view containing all UI for controlling the camera
         val controls = View.inflate(requireContext(), R.layout.camera_ui_container, container)
+
+        // In the background, load latest photo taken (if any) for gallery thumbnail
+        lifecycleScope.launch(Dispatchers.IO) {
+            outputDirectory.listFiles { file ->
+                EXTENSION_WHITELIST.contains(file.extension.toUpperCase(Locale.ROOT))
+            }?.max()?.let {
+                setGalleryThumbnail(Uri.fromFile(it))
+            }
+        }
 
         // Listener for button used to capture photo
         controls.findViewById<ImageButton>(R.id.camera_capture_button).setOnClickListener {
@@ -460,12 +407,50 @@ class CameraFragment : Fragment() {
                     isReversedHorizontal = lensFacing == CameraSelector.LENS_FACING_FRONT
                 }
 
+                // Create output options object which contains file + metadata
+                val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile)
+                    .setMetadata(metadata)
+                    .build()
+
                 // Setup image capture listener which is triggered after photo has been taken
                 imageCapture.takePicture(
-                    ImageCapture.OutputFileOptions.Builder(photoFile).setMetadata(
-                        metadata
-                    ).build(), mainExecutor, imageSavedListener
-                )
+                    outputOptions, cameraExecutor, object : ImageCapture.OnImageSavedCallback {
+                        override fun onError(exc: ImageCaptureException) {
+                            Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+                        }
+
+                        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                            val savedUri = output.savedUri ?: Uri.fromFile(photoFile)
+                            Log.d(TAG, "Photo capture succeeded: $savedUri")
+
+                            // We can only change the foreground Drawable using API level 23+ API
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                // Update the gallery thumbnail with latest picture taken
+                                setGalleryThumbnail(savedUri)
+                            }
+
+                            // Implicit broadcasts will be ignored for devices running API level >= 24
+                            // so if you only target API level 24+ you can remove this statement
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                                requireActivity().sendBroadcast(
+                                    Intent(android.hardware.Camera.ACTION_NEW_PICTURE, savedUri)
+                                )
+                            }
+
+                            // If the folder selected is an external media directory, this is
+                            // unnecessary but otherwise other apps will not be able to access our
+                            // images unless we scan them using [MediaScannerConnection]
+                            val mimeType = MimeTypeMap.getSingleton()
+                                .getMimeTypeFromExtension(savedUri.toFile().extension)
+                            MediaScannerConnection.scanFile(
+                                context,
+                                arrayOf(savedUri.toFile().absolutePath),
+                                arrayOf(mimeType)
+                            ) { _, uri ->
+                                Log.d(TAG, "Image capture scanned into media store: $uri")
+                            }
+                        }
+                    })
 
                 // We can only change the foreground Drawable using API level 23+ API
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -481,57 +466,56 @@ class CameraFragment : Fragment() {
             }
         }
 
-        controls.findViewById<Spinner>(R.id.spinner)?.let {
-            ArrayAdapter.createFromResource(
-                this.requireContext(),
-                R.array.analyzers,
-                android.R.layout.simple_spinner_item
-            ).also { adapter ->
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                it.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onNothingSelected(parent: AdapterView<*>?) {
+        // Setup for button used to switch cameras
+        controls.findViewById<ImageButton>(R.id.camera_switch_button).let {
 
-                    }
+            // Disable the button until the camera is set up
+            it.isEnabled = false
 
-                    override fun onItemSelected(
-                        parent: AdapterView<*>?,
-                        view: View?,
-                        position: Int,
-                        id: Long
-                    ) {
-                        val menu = AnalyzerMenu.typeOf(position) ?: return
-                        analyzer = when (menu) {
-                            AnalyzerMenu.Face -> faceAnalyzer
-                            AnalyzerMenu.Text -> textAnalyzer
-                        }
-                        bindCameraUseCases()
-                    }
+            // Listener for button used to switch cameras. Only called if the button is enabled
+            it.setOnClickListener {
+                lensFacing = if (CameraSelector.LENS_FACING_FRONT == lensFacing) {
+                    CameraSelector.LENS_FACING_BACK
+                } else {
+                    CameraSelector.LENS_FACING_FRONT
                 }
-                it.adapter = adapter
-
+                // Re-bind use cases to update selected camera
+                bindCameraUseCases()
             }
-        }
-
-        // Listener for button used to switch cameras
-        controls.findViewById<ImageButton>(R.id.camera_switch_button).setOnClickListener {
-            lensFacing = if (CameraSelector.LENS_FACING_FRONT == lensFacing) {
-                CameraSelector.LENS_FACING_BACK
-            } else {
-                CameraSelector.LENS_FACING_FRONT
-            }
-            // Bind use cases
-            bindCameraUseCases()
         }
 
         // Listener for button used to view the most recent photo
         controls.findViewById<ImageButton>(R.id.photo_view_button).setOnClickListener {
             // Only navigate when the gallery has photos
             if (true == outputDirectory.listFiles()?.isNotEmpty()) {
-                Navigation.findNavController(requireActivity(), R.id.fragment_container).navigate(
-                    CameraFragmentDirections.actionCameraToGallery(outputDirectory.absolutePath)
+                Navigation.findNavController(
+                    requireActivity(), R.id.fragment_container
+                ).navigate(
+                    CameraFragmentDirections
+                        .actionCameraToGallery(outputDirectory.absolutePath)
                 )
             }
         }
+    }
+
+    /** Enabled or disabled a button to switch cameras depending on the available cameras */
+    private fun updateCameraSwitchButton() {
+        val switchCamerasButton = container.findViewById<ImageButton>(R.id.camera_switch_button)
+        try {
+            switchCamerasButton.isEnabled = hasBackCamera() && hasFrontCamera()
+        } catch (exception: CameraInfoUnavailableException) {
+            switchCamerasButton.isEnabled = false
+        }
+    }
+
+    /** Returns true if the device has an available back camera. False otherwise */
+    private fun hasBackCamera(): Boolean {
+        return cameraProvider?.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) ?: false
+    }
+
+    /** Returns true if the device has an available front camera. False otherwise */
+    private fun hasFrontCamera(): Boolean {
+        return cameraProvider?.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) ?: false
     }
 
     /**
@@ -574,13 +558,17 @@ class CameraFragment : Fragment() {
          * should not store external references to this image, as these references will become
          * invalid.
          *
-         * @param image image being analyzed VERY IMPORTANT: do not close the image, it will be
-         * automatically closed after this method returns
-         * @return the image analysis result
+         * @param image image being analyzed VERY IMPORTANT: Analyzer method implementation must
+         * call image.close() on received images when finished using them. Otherwise, new images
+         * may not be received or the camera may stall, depending on back pressure setting.
+         *
          */
         override fun analyze(image: ImageProxy) {
             // If there are no listeners attached, we don't need to perform analysis
-            if (listeners.isEmpty()) return
+            if (listeners.isEmpty()) {
+                image.close()
+                return
+            }
 
             // Keep track of frames analyzed
             val currentTime = System.currentTimeMillis()
@@ -593,26 +581,27 @@ class CameraFragment : Fragment() {
             framesPerSecond = 1.0 / ((timestampFirst - timestampLast) /
                     frameTimestamps.size.coerceAtLeast(1).toDouble()) * 1000.0
 
-            // Calculate the average luma no more often than every second
-            if (frameTimestamps.first - lastAnalyzedTimestamp >= TimeUnit.SECONDS.toMillis(1)) {
-                lastAnalyzedTimestamp = frameTimestamps.first
+            // Analysis could take an arbitrarily long amount of time
+            // Since we are running in a different thread, it won't stall other use cases
 
-                // Since format in ImageAnalysis is YUV, image.planes[0] contains the luminance
-                //  plane
-                val buffer = image.planes[0].buffer
+            lastAnalyzedTimestamp = frameTimestamps.first
 
-                // Extract image data from callback object
-                val data = buffer.toByteArray()
+            // Since format in ImageAnalysis is YUV, image.planes[0] contains the luminance plane
+            val buffer = image.planes[0].buffer
 
-                // Convert the data into an array of pixel values ranging 0-255
-                val pixels = data.map { it.toInt() and 0xFF }
+            // Extract image data from callback object
+            val data = buffer.toByteArray()
 
-                // Compute average luminance for the image
-                val luma = pixels.average()
+            // Convert the data into an array of pixel values ranging 0-255
+            val pixels = data.map { it.toInt() and 0xFF }
 
-                // Call all listeners with new value
-                listeners.forEach { it(luma) }
-            }
+            // Compute average luminance for the image
+            val luma = pixels.average()
+
+            // Call all listeners with new value
+            listeners.forEach { it(luma) }
+
+            image.close()
         }
     }
 
@@ -630,11 +619,5 @@ class CameraFragment : Fragment() {
                 baseFolder, SimpleDateFormat(format, Locale.US)
                     .format(System.currentTimeMillis()) + extension
             )
-    }
-}
-
-class ThreadPerTaskExecutor : Executor {
-    override fun execute(r: Runnable) {
-        Thread(r).start()
     }
 }
