@@ -25,7 +25,7 @@ data class TextAnalyzerResult(
     val frameMetaData: FrameMetadata
 )
 
-class TextAnalyzer : ImageAnalysis.Analyzer {
+class TextAnalyzer(private val lensFacing: Int) : ImageAnalysis.Analyzer {
 
     private val detector: FirebaseVisionTextRecognizer =
         FirebaseVision.getInstance().onDeviceTextRecognizer
@@ -56,6 +56,7 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
 
         val frameMetaData =
             FrameMetadata.Builder().setWidth(imageProxy.width).setHeight(imageProxy.height)
+                .setCameraFacing(lensFacing)
                 .setRotation(rotation).build()
 
 
@@ -81,10 +82,17 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
 
     @MainThread
     fun updateTextUI(graphicOverlay: GraphicOverlay, result: TextAnalyzerResult) {
-        Log.d("TextAnalyzer", "updateTextUI${result.frameMetaData.width}, ${result.frameMetaData.height}")
+        Log.d(
+            "TextAnalyzer",
+            "updateTextUI${result.frameMetaData.width}, ${result.frameMetaData.height}, ${result.frameMetaData.cameraFacing}"
+        )
 
         graphicOverlay.clear()
-        graphicOverlay.setCameraInfo(result.frameMetaData.height, result.frameMetaData.width, result.frameMetaData.cameraFacing)
+        graphicOverlay.setCameraInfo(
+            result.frameMetaData.height,
+            result.frameMetaData.width,
+            result.frameMetaData.cameraFacing
+        )
         Log.d("TextAnalyzer", "$result")
         val blocks = result.visionText.textBlocks
         blocks.forEach { block ->
@@ -94,7 +102,10 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
                 elements.forEach { element ->
                     val textGraphic = TextGraphic(graphicOverlay, element)
                     val box = element.boundingBox ?: return@forEach
-                    Log.d("TextAnalyzer", "${element.text}:boundingBox:${box.left}, ${box.top}, ${box.right}, ${box.bottom}, ${box.width()}, ${box.height()}")
+                    Log.d(
+                        "TextAnalyzer",
+                        "${element.text}:boundingBox:${box.left}, ${box.top}, ${box.right}, ${box.bottom}, ${box.width()}, ${box.height()}"
+                    )
                     graphicOverlay.add(textGraphic)
                 }
             }

@@ -254,6 +254,7 @@ class CameraFragment : Fragment() {
                 else -> throw IllegalStateException("Back and front camera are unavailable")
             }
 
+            Log.d(TAG, "lensFacing:$lensFacing")
             // Enable or disable switching between cameras
             updateCameraSwitchButton()
 
@@ -314,7 +315,7 @@ class CameraFragment : Fragment() {
             .build()
             // The analyzer can then be assigned to the instance
             .also {
-                it.setAnalyzer(cameraExecutor, TextAnalyzer().apply {
+                it.setAnalyzer(cameraExecutor, TextAnalyzer(lensFacing).apply {
                     this.liveData.observe(viewLifecycleOwner, Observer { result ->
                         this.updateTextUI(graphicOverlay, result)
                     })
