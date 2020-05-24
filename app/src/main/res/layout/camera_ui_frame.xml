@@ -5,29 +5,36 @@
     android:layout_height="match_parent"
     >
 
-    <ImageView
-        android:id="@+id/frame"
+
+    <net.kwmt27.detectfacewithcamerax.ui.main.view.FocusView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="100dp"
-        android:src="@drawable/ic_frame"
-        android:layout_above="@id/bottom_layout"
-        android:layout_marginBottom="60dp"
         />
 
-    <ImageView
+<!--    <ImageView-->
+<!--        android:id="@+id/frame"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_above="@id/bottom_layout"-->
+<!--        android:layout_alignParentTop="true"-->
+<!--        android:layout_centerHorizontal="true"-->
+<!--        android:layout_marginTop="100dp"-->
+<!--        android:layout_marginBottom="60dp"-->
+<!--        android:src="@drawable/ic_frame"-->
+<!--        />-->
 
-        android:id="@+id/bottom_layout"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginBottom="32dp"
+<!--    <ImageView-->
 
-        android:src="@drawable/ic_bottom_layout"
-        />
+<!--        android:id="@+id/bottom_layout"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_alignParentBottom="true"-->
+<!--        android:layout_centerHorizontal="true"-->
+<!--        android:layout_marginBottom="32dp"-->
+
+<!--        android:src="@drawable/ic_bottom_layout"-->
+<!--        />-->
 
 
 </RelativeLayout>
