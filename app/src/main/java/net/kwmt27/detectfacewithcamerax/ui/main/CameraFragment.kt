@@ -367,14 +367,23 @@ class CameraFragment : Fragment() {
 
     /** Method used to re-draw the camera UI controls, called every time configuration changes. */
     private fun updateCameraUi() {
+        updateControlsUi()
+    }
+
+    private fun updateFrameUi() {
+
+    }
+
+    // コントロール部品のセットアップ&更新
+    private fun updateControlsUi() {
         Log.d(TAG, "viewFinder: ${viewFinder.width} x ${viewFinder.height}")
-//        if(isPortraitMode()) {
-////
-////            graphicOverlay.setCameraInfo(1080, 1920, lensFacing)
-//            graphicOverlay.setCameraInfo(viewFinder.width, viewFinder.height, lensFacing)
-//        } else {
-//            graphicOverlay.setCameraInfo(viewFinder.height, viewFinder.width, lensFacing)
-//        }
+        //        if(isPortraitMode()) {
+        ////
+        ////            graphicOverlay.setCameraInfo(1080, 1920, lensFacing)
+        //            graphicOverlay.setCameraInfo(viewFinder.width, viewFinder.height, lensFacing)
+        //        } else {
+        //            graphicOverlay.setCameraInfo(viewFinder.height, viewFinder.width, lensFacing)
+        //        }
 
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {

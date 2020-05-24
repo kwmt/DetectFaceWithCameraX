@@ -21,57 +21,7 @@
     android:layout_height="match_parent"
     android:layoutDirection="ltr">
 
-<!--    <Spinner-->
-<!--        android:id="@+id/spinner"-->
-<!--        android:layout_width="wrap_content"-->
-<!--        android:layout_height="wrap_content"-->
-<!--        app:layout_constraintBottom_toTopOf="@id/camera_switch_button"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        android:layout_marginStart="@dimen/margin_small"-->
-<!--        android:layout_marginBottom="@dimen/margin_small"-->
-<!--        android:entries="@array/analyzers"-->
-<!--        android:background="@color/colorAccent"-->
-<!--        />-->
 
-    <!-- Camera control and gallery buttons -->
-    <ImageButton
-        android:id="@+id/camera_switch_button"
-        android:layout_width="@dimen/round_button_medium"
-        android:layout_height="@dimen/round_button_medium"
-        android:layout_marginStart="@dimen/margin_small"
-        android:layout_marginBottom="@dimen/margin_xlarge"
-        android:background="@android:color/transparent"
-        android:contentDescription="@string/switch_camera_button_alt"
-        android:padding="@dimen/spacing_small"
-        android:scaleType="fitCenter"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:srcCompat="@drawable/ic_switch" />
-
-    <ImageButton
-        android:id="@+id/camera_capture_button"
-        android:layout_width="@dimen/round_button_large"
-        android:layout_height="@dimen/round_button_large"
-        android:layout_marginBottom="@dimen/shutter_button_margin"
-        android:background="@drawable/ic_shutter"
-        android:contentDescription="@string/capture_button_alt"
-        android:scaleType="fitCenter"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent" />
-
-    <ImageButton
-        android:id="@+id/photo_view_button"
-        android:layout_width="@dimen/round_button_medium"
-        android:layout_height="@dimen/round_button_medium"
-        android:layout_marginEnd="@dimen/margin_small"
-        android:layout_marginBottom="@dimen/margin_xlarge"
-        android:background="@drawable/ic_outer_circle"
-        android:contentDescription="@string/gallery_button_alt"
-        android:padding="@dimen/spacing_large"
-        android:scaleType="fitCenter"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:srcCompat="@drawable/ic_photo" />
+    <include layout="@layout/camera_ui_controls" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
