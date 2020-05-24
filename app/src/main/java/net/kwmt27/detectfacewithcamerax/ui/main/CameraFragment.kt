@@ -31,6 +31,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.util.Size
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -283,17 +284,20 @@ class CameraFragment : Fragment() {
         // Preview
         preview = Preview.Builder()
             // We request aspect ratio but no resolution
-            .setTargetAspectRatio(screenAspectRatio)
+            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
+//            .setTargetAspectRatio(screenAspectRatio)
             // Set initial target rotation
             .setTargetRotation(rotation)
             .build()
 
+        Log.d(TAG, "viewFinder: ${viewFinder.width}, ${viewFinder.height}")
         // ImageCapture
         imageCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             // We request aspect ratio but no resolution to match preview config, but letting
             // CameraX optimize for whatever specific resolution best fits our use cases
-            .setTargetAspectRatio(screenAspectRatio)
+//            .setTargetAspectRatio(screenAspectRatio)
+            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
             // Set initial target rotation, we will have to call this again if rotation changes
             // during the lifecycle of this use case
             .setTargetRotation(rotation)
@@ -302,7 +306,8 @@ class CameraFragment : Fragment() {
         // ImageAnalysis
         imageAnalyzer = ImageAnalysis.Builder()
             // We request aspect ratio but no resolution
-            .setTargetAspectRatio(screenAspectRatio)
+            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
+//            .setTargetAspectRatio(screenAspectRatio)
             // Set initial target rotation, we will have to call this again if rotation changes
             // during the lifecycle of this use case
             .setTargetRotation(rotation)
@@ -334,6 +339,7 @@ class CameraFragment : Fragment() {
 
             // Attach the viewfinder's surface provider to preview use case
             preview?.setSurfaceProvider(viewFinder.createSurfaceProvider(camera?.cameraInfo))
+
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
         }
@@ -360,6 +366,15 @@ class CameraFragment : Fragment() {
 
     /** Method used to re-draw the camera UI controls, called every time configuration changes. */
     private fun updateCameraUi() {
+        Log.d(TAG, "viewFinder: ${viewFinder.width} x ${viewFinder.height}")
+//        if(isPortraitMode()) {
+////
+////            graphicOverlay.setCameraInfo(1080, 1920, lensFacing)
+//            graphicOverlay.setCameraInfo(viewFinder.width, viewFinder.height, lensFacing)
+//        } else {
+//            graphicOverlay.setCameraInfo(viewFinder.height, viewFinder.width, lensFacing)
+//        }
+
 
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
@@ -590,6 +605,22 @@ class CameraFragment : Fragment() {
 
             image.close()
         }
+    }
+
+
+    private fun isPortraitMode(): Boolean {
+        val orientation = requireContext().resources.configuration.orientation
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            return false
+        }
+        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+            return true
+        }
+        Log.d(
+            TAG,
+            "isPortraitMode returning false by default"
+        )
+        return false
     }
 
     companion object {

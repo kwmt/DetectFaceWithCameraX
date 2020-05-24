@@ -12,6 +12,7 @@ import com.google.firebase.ml.vision.text.FirebaseVisionTextRecognizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.kwmt27.detectfacewithcamerax.ui.main.view.FrameMetadata
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
 import net.kwmt27.detectfacewithcamerax.ui.main.view.face.FaceAnalyzer
 import java.util.concurrent.atomic.AtomicBoolean
@@ -20,8 +21,8 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 data class TextAnalyzerResult(
-    val visionText: FirebaseVisionText
-
+    val visionText: FirebaseVisionText,
+    val frameMetaData: FrameMetadata
 )
 
 class TextAnalyzer : ImageAnalysis.Analyzer {
@@ -34,15 +35,18 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
     private var isDetecting = AtomicBoolean(false)
 
     override fun analyze(imageProxy: ImageProxy) {
-        if(isDetecting.get()) {
+        if (isDetecting.get()) {
             imageProxy.close()
             return
         }
         isDetecting.set(true)
+
+        Log.d(this.javaClass.simpleName, "imageProxy: ${imageProxy.width}, ${imageProxy.height}")
         val image = imageProxy.image!!
         val rotation = FaceAnalyzer.translateFirebaseRotation(imageProxy.imageInfo.rotationDegrees)
 
         val visionImage = FirebaseVisionImage.fromMediaImage(image, rotation)
+
         imageProxy.close()
 
 //        detectTextNormalListener(visionImage) {
@@ -50,12 +54,16 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
 //            isDetecting = false
 //        }
 
+        val frameMetaData =
+            FrameMetadata.Builder().setWidth(imageProxy.width).setHeight(imageProxy.height)
+                .setRotation(rotation).build()
+
 
         imageProxy.close()
         val scope = CoroutineScope(Dispatchers.Default)
         val job = scope.launch {
             val visionText = detectText(visionImage)
-            liveData.postValue(TextAnalyzerResult(visionText))
+            liveData.postValue(TextAnalyzerResult(visionText, frameMetaData))
             isDetecting.set(false)
         }
     }
@@ -73,9 +81,10 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
 
     @MainThread
     fun updateTextUI(graphicOverlay: GraphicOverlay, result: TextAnalyzerResult) {
-        Log.d("TextAnalyzer", "updateTextUI")
+        Log.d("TextAnalyzer", "updateTextUI${result.frameMetaData.width}, ${result.frameMetaData.height}")
 
         graphicOverlay.clear()
+        graphicOverlay.setCameraInfo(result.frameMetaData.height, result.frameMetaData.width, result.frameMetaData.cameraFacing)
         Log.d("TextAnalyzer", "$result")
         val blocks = result.visionText.textBlocks
         blocks.forEach { block ->
@@ -84,6 +93,8 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
                 val elements = line.elements
                 elements.forEach { element ->
                     val textGraphic = TextGraphic(graphicOverlay, element)
+                    val box = element.boundingBox ?: return@forEach
+                    Log.d("TextAnalyzer", "${element.text}:boundingBox:${box.left}, ${box.top}, ${box.right}, ${box.bottom}, ${box.width()}, ${box.height()}")
                     graphicOverlay.add(textGraphic)
                 }
             }
@@ -91,13 +102,13 @@ class TextAnalyzer : ImageAnalysis.Analyzer {
         graphicOverlay.postInvalidate()
     }
 
-    private fun detectTextNormalListener(
-        image: FirebaseVisionImage,
-        callback: (TextAnalyzerResult) -> Unit
-    ) {
-        detector.processImage(image)
-            .addOnSuccessListener { results ->
-                callback(TextAnalyzerResult(results))
-            }
-    }
+//    private fun detectTextNormalListener(
+//        image: FirebaseVisionImage,
+//        callback: (TextAnalyzerResult) -> Unit
+//    ) {
+//        detector.processImage(image)
+//            .addOnSuccessListener { results ->
+//                callback(TextAnalyzerResult(results))
+//            }
+//    }
 }
