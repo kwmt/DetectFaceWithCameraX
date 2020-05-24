@@ -67,7 +67,10 @@ class FaceGraphic(
         val x = translateX(face.boundingBox.centerX().toFloat())
         val y = translateY(face.boundingBox.centerY().toFloat())
 
-        Log.d("FaceGraphic", "(x,y)=($x, $y), (centerX, centerY)=(${face.boundingBox.centerX()}, ${face.boundingBox.centerY()}),left= ${face.boundingBox.left}, right=${face.boundingBox.top} ")
+        Log.d(
+            "FaceGraphic",
+            "(x,y)=($x, $y), (centerX, centerY)=(${face.boundingBox.centerX()}, ${face.boundingBox.centerY()}),left= ${face.boundingBox.left}, right=${face.boundingBox.top} "
+        )
 
 
         canvas.drawCircle(

@@ -1,7 +1,12 @@
 package net.kwmt27.detectfacewithcamerax.ui.main.view
 
 /** Describing a frame info.  */
-class FrameMetadata private constructor(val width: Int, val height: Int, val rotation: Int, val cameraFacing: Int) {
+class FrameMetadata private constructor(
+    val width: Int,
+    val height: Int,
+    val rotation: Int,
+    val cameraFacing: Int
+) {
 
     /** Builder of [FrameMetadata].  */
     class Builder {

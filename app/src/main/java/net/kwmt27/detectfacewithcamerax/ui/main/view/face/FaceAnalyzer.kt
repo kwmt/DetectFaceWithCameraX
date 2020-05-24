@@ -59,7 +59,6 @@ class FaceDetector {
 
 class FaceAnalyzer(private val listener: FaceListener) : ImageAnalysis.Analyzer {
 
-
     val liveDataFaces = MutableLiveData<Face>()
     override fun analyze(imageProxy: ImageProxy) {
         Log.d("FaceAnalyzer", "analyze")
@@ -76,7 +75,6 @@ class FaceAnalyzer(private val listener: FaceListener) : ImageAnalysis.Analyzer 
 //            liveDataFaces.postValue(Face(visionFaces))
         }
     }
-
 
     companion object {
         fun translateFirebaseRotation(rotationDegrees: Int): Int {

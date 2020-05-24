@@ -1,6 +1,10 @@
 package net.kwmt27.detectfacewithcamerax.ui.main.view.textrecoginition
 
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.util.Log
 import com.google.firebase.ml.vision.text.FirebaseVisionText
 import net.kwmt27.detectfacewithcamerax.ui.main.view.GraphicOverlay
@@ -31,12 +35,11 @@ class TextGraphic(
     /** Draws the text block annotations for position, size, and raw value on the supplied canvas.  */
     override fun draw(canvas: Canvas) {
 
-
 //        canvas.drawRect(this.rect, testRectPaint)
         Log.d(TAG, "canvas:${canvas.width},${canvas.height}")
 
         // 反転しているか確認したいので、テストdraw描く
-        canvas.drawRect(Rect(0,0,30,30), testRectPaint)
+        canvas.drawRect(Rect(0, 0, 30, 30), testRectPaint)
 
         text?.let { txt ->
             val scaleX = overlay.scaleX
@@ -53,14 +56,15 @@ class TextGraphic(
 //            val ty = translateY(rect.centerY())
 //            Log.d(TAG, "translateX: $tx, translateY: $ty")
 
-
-
             rect.left = translateX(rect.left)
             rect.top = translateY(rect.top)
             rect.right = translateX(rect.right)
             rect.bottom = translateY(rect.bottom)
             canvas.drawRect(rect, rectPaint)
-            Log.d(TAG, "boundingBox:${txt.text}:${rect.left},${rect.top},${rect.right},${rect.bottom}")
+            Log.d(
+                TAG,
+                "boundingBox:${txt.text}:${rect.left},${rect.top},${rect.right},${rect.bottom}"
+            )
 
             // Renders the text at the bottom of the box.
             canvas.drawText(txt.text, rect.left, rect.bottom, textPaint)

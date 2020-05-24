@@ -192,7 +192,7 @@ public class GraphicOverlay extends View {
                 widthScaleFactor = (float) getWidth() / previewWidth;
                 heightScaleFactor = (float) getHeight() / previewHeight;
             }
-            Log.d("MIDemoApp", "previewWidth:"+previewWidth+",previewHeight:"+previewHeight+",getWidth() :" + getWidth() + ",getHeight(): "+ getHeight() +",widthScaleFactor:" + widthScaleFactor + ", heightScaleFactor:" + heightScaleFactor);
+            Log.d("MIDemoApp", "previewWidth:" + previewWidth + ",previewHeight:" + previewHeight + ",getWidth() :" + getWidth() + ",getHeight(): " + getHeight() + ",widthScaleFactor:" + widthScaleFactor + ", heightScaleFactor:" + heightScaleFactor);
             for (Graphic graphic : graphics) {
 
                 graphic.draw(canvas);

@@ -285,7 +285,7 @@ class CameraFragment : Fragment() {
         // Preview
         preview = Preview.Builder()
             // We request aspect ratio but no resolution
-            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
+            .setTargetResolution(Size(viewFinder.width, viewFinder.height))
 //            .setTargetAspectRatio(screenAspectRatio)
             // Set initial target rotation
             .setTargetRotation(rotation)
@@ -298,7 +298,7 @@ class CameraFragment : Fragment() {
             // We request aspect ratio but no resolution to match preview config, but letting
             // CameraX optimize for whatever specific resolution best fits our use cases
 //            .setTargetAspectRatio(screenAspectRatio)
-            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
+            .setTargetResolution(Size(viewFinder.width, viewFinder.height))
             // Set initial target rotation, we will have to call this again if rotation changes
             // during the lifecycle of this use case
             .setTargetRotation(rotation)
@@ -307,7 +307,7 @@ class CameraFragment : Fragment() {
         // ImageAnalysis
         imageAnalyzer = ImageAnalysis.Builder()
             // We request aspect ratio but no resolution
-            .setTargetResolution(Size(viewFinder.width,viewFinder.height))
+            .setTargetResolution(Size(viewFinder.width, viewFinder.height))
 //            .setTargetAspectRatio(screenAspectRatio)
             // Set initial target rotation, we will have to call this again if rotation changes
             // during the lifecycle of this use case
@@ -375,7 +375,6 @@ class CameraFragment : Fragment() {
 //        } else {
 //            graphicOverlay.setCameraInfo(viewFinder.height, viewFinder.width, lensFacing)
 //        }
-
 
         // Remove previous UI if any
         container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
@@ -607,7 +606,6 @@ class CameraFragment : Fragment() {
             image.close()
         }
     }
-
 
     private fun isPortraitMode(): Boolean {
         val orientation = requireContext().resources.configuration.orientation
