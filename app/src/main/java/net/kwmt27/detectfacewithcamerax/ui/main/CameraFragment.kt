@@ -256,7 +256,7 @@ class CameraFragment : Fragment() {
 
             Log.d(TAG, "lensFacing:$lensFacing")
             // Enable or disable switching between cameras
-            updateCameraSwitchButton()
+//            updateCameraSwitchButton()
 
             // Build and bind the camera use cases
             bindCameraUseCases()
@@ -367,11 +367,17 @@ class CameraFragment : Fragment() {
 
     /** Method used to re-draw the camera UI controls, called every time configuration changes. */
     private fun updateCameraUi() {
-        updateControlsUi()
+        // Remove previous UI if any
+        container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
+            container.removeView(it)
+        }
+
+//        updateControlsUi()
+        updateFrameUi()
     }
 
     private fun updateFrameUi() {
-
+        val frame = View.inflate(requireContext(), R.layout.camera_ui_container, container)
     }
 
     // コントロール部品のセットアップ&更新
@@ -384,11 +390,6 @@ class CameraFragment : Fragment() {
         //        } else {
         //            graphicOverlay.setCameraInfo(viewFinder.height, viewFinder.width, lensFacing)
         //        }
-
-        // Remove previous UI if any
-        container.findViewById<ConstraintLayout>(R.id.camera_ui_container)?.let {
-            container.removeView(it)
-        }
 
         // Inflate a new view containing all UI for controlling the camera
         val controls = View.inflate(requireContext(), R.layout.camera_ui_container, container)
