@@ -399,8 +399,8 @@ Log.d(TAG, "Average luminosity: $luma")
             container.removeView(it)
         }
 
-//        updateControlsUi()
-        updateFrameUi()
+        updateControlsUi()
+//        updateFrameUi()
     }
 
     private fun updateFrameUi() {

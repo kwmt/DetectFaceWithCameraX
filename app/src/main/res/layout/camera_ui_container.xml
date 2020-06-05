@@ -22,7 +22,7 @@
     android:layoutDirection="ltr">
 
 
-    <include layout="@layout/camera_ui_frame" />
-<!--    <include layout="@layout/camera_ui_controls" />-->
+<!--    <include layout="@layout/camera_ui_frame" />-->
+    <include layout="@layout/camera_ui_controls" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
