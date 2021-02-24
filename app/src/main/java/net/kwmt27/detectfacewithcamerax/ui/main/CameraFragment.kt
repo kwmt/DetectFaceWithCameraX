@@ -346,7 +346,7 @@ Log.d(TAG, "Average luminosity: $luma")
 
         Camera2Config.defaultConfig()
 
-        videoCapture = VideoCaptureConfig.Builder()
+        videoCapture = VideoCapture.Builder()
             .setTargetResolution(Size(viewFinder.width, viewFinder.height))
             .setTargetRotation(rotation)
             .setVideoFrameRate(24) //
