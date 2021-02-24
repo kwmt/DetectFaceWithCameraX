@@ -276,6 +276,7 @@ class CameraFragment : Fragment() {
     }
 
     /** Declare and bind preview, capture and analysis use cases */
+    @SuppressLint("RestrictedApi")
     private fun bindCameraUseCases() {
 
         // Get screen metrics used to setup camera for full screen resolution
