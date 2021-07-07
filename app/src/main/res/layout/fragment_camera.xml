@@ -20,7 +20,7 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <androidx.camera.view.PreviewView
+    <androidx.camera.view.CameraView
         android:id="@+id/view_finder"
         android:layout_width="0dp"
         android:layout_height="0dp"

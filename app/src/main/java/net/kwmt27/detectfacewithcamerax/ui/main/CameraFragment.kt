@@ -52,6 +52,7 @@ import androidx.camera.core.Preview
 import androidx.camera.core.VideoCapture
 import androidx.camera.core.impl.VideoCaptureConfig
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.CameraView
 import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
@@ -98,7 +99,7 @@ typealias LumaListener = (luma: Double) -> Unit
 class CameraFragment : Fragment() {
 
     private lateinit var container: ConstraintLayout
-    private lateinit var viewFinder: PreviewView
+    private lateinit var viewFinder: CameraView
     private lateinit var outputDirectory: File
     private lateinit var broadcastManager: LocalBroadcastManager
 
@@ -276,6 +277,7 @@ class CameraFragment : Fragment() {
     }
 
     /** Declare and bind preview, capture and analysis use cases */
+    @SuppressLint("RestrictedApi")
     private fun bindCameraUseCases() {
 
         // Get screen metrics used to setup camera for full screen resolution
@@ -346,7 +348,7 @@ Log.d(TAG, "Average luminosity: $luma")
 
         Camera2Config.defaultConfig()
 
-        videoCapture = VideoCaptureConfig.Builder()
+        videoCapture = VideoCapture.Builder()
             .setTargetResolution(Size(viewFinder.width, viewFinder.height))
             .setTargetRotation(rotation)
             .setVideoFrameRate(24) //
@@ -359,14 +361,15 @@ Log.d(TAG, "Average luminosity: $luma")
         try {
             // A variable number of use-cases can be passed here -
             // camera provides access to CameraControl & CameraInfo
-            camera = cameraProvider.bindToLifecycle(
-                viewLifecycleOwner, cameraSelector,
-                preview, imageCapture, imageAnalyzer
-//                preview , videoCapture // Video撮影用。まだImageAnalysisはサポートしていない
-            )
+//            camera = cameraProvider.bindToLifecycle(
+//                viewLifecycleOwner, cameraSelector,
+//                preview, imageCapture, imageAnalyzer
+////                preview , videoCapture // Video撮影用。まだImageAnalysisはサポートしていない
+//            )
 
+            viewFinder.bindToLifecycle(viewLifecycleOwner)
             // Attach the viewfinder's surface provider to preview use case
-            preview?.setSurfaceProvider(viewFinder.createSurfaceProvider())
+//            preview?.setSurfaceProvider(viewFinder.createSurfaceProvider())
 
         } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
